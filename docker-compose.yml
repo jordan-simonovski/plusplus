@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: plusplus
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:ro
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/plusplus?sslmode=disable
+      SLACK_SIGNING_SECRET: dev-signing-secret
+      SLACK_BOT_TOKEN: xoxb-local-token
+    ports:
+      - "8080:8080"
