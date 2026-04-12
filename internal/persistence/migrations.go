@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"log"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,6 +15,7 @@ import (
 var migrationsFS embed.FS
 
 func RunMigrations(ctx context.Context, db *sql.DB) error {
+	log.Printf("migrations: starting")
 	if _, err := db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version TEXT PRIMARY KEY,
@@ -35,6 +37,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		files = append(files, filepath.Join("migrations", entry.Name()))
 	}
 	sort.Strings(files)
+	log.Printf("migrations: discovered %d file(s)", len(files))
+
+	appliedCount := 0
+	skippedCount := 0
 
 	for _, migrationFile := range files {
 		applied, err := migrationApplied(ctx, db, migrationFile)
@@ -42,6 +48,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 			return err
 		}
 		if applied {
+			skippedCount++
+			log.Printf("migrations: already applied %s", migrationFile)
 			continue
 		}
 
@@ -66,8 +74,11 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit migration %s: %w", migrationFile, err)
 		}
+		appliedCount++
+		log.Printf("migrations: applied %s", migrationFile)
 	}
 
+	log.Printf("migrations: complete (applied=%d skipped=%d)", appliedCount, skippedCount)
 	return nil
 }
 
