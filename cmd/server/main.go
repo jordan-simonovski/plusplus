@@ -33,6 +33,9 @@ func main() {
 	if err := db.PingContext(context.Background()); err != nil {
 		log.Fatalf("ping postgres: %v", err)
 	}
+	if err := persistence.RunMigrations(context.Background(), db); err != nil {
+		log.Fatalf("run migrations: %v", err)
+	}
 
 	karmaRepo := persistence.NewPostgresKarmaRepository(db)
 	settingsRepo := persistence.NewPostgresSettingsRepository(db)

@@ -73,7 +73,8 @@ ngrok http 8080
 ## Supabase Deployment Notes
 - Set `DATABASE_URL` to the Supabase Postgres connection string.
 - Keep `sslmode=require` for hosted Supabase.
-- Existing schema in `scripts/init-postgres.sql` is directly compatible.
+- App startup now runs SQL migrations automatically from `internal/persistence/migrations/*.sql`.
+- Existing schema in `scripts/init-postgres.sql` matches migration `001_init.sql`.
 
 ## Railway + Supabase Setup
 

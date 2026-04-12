@@ -23,6 +23,9 @@ func TestPostgresRepositoriesIntegration(t *testing.T) {
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("ping postgres: %v", err)
 	}
+	if err := RunMigrations(ctx, db); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
 
 	teamID := "T-it"
 	if _, err := db.ExecContext(ctx, `DELETE FROM karma_totals WHERE team_id = $1`, teamID); err != nil {
