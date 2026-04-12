@@ -80,7 +80,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if envelope.Type != "event_callback" || envelope.Event.Type != "app_mention" {
+	if envelope.Type != "event_callback" || !isSupportedKarmaEventType(envelope.Event.Type) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
@@ -143,4 +143,8 @@ func defaultThreadTS(event SlackEvent) string {
 		return event.ThreadTS
 	}
 	return event.EventTS
+}
+
+func isSupportedKarmaEventType(eventType string) bool {
+	return eventType == "app_mention" || eventType == "message"
 }

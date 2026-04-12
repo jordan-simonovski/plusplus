@@ -64,6 +64,31 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	}
 }
 
+func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
+	web := &fakeWebClient{}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"event":{"type":"message","user":"U1","text":"<@U2> ++++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if web.channelID != "C1" {
+		t.Fatalf("unexpected channel: %s", web.channelID)
+	}
+	if web.threadTS != "123.4" {
+		t.Fatalf("expected thread reply, got %q", web.threadTS)
+	}
+}
+
 func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 	web := &fakeWebClient{}
 	settings := &fakeReplyModeService{mode: ReplyModeChannel}
