@@ -1,0 +1,36 @@
+display_information:
+  name: PlusPlus Karma
+  description: Slack karma bot for plus/minus awards and leaderboard tracking.
+  background_color: "#1f2937"
+
+features:
+  bot_user:
+    display_name: plusplus
+    always_online: true
+  slash_commands:
+    - command: /leaderboard
+      url: https://YOUR_PUBLIC_APP_URL/slack/commands
+      description: Show the all-time karma leaderboard.
+      should_escape: false
+    - command: /settings
+      url: https://YOUR_PUBLIC_APP_URL/slack/commands
+      description: Configure channel settings (reply_mode thread|channel).
+      should_escape: false
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - commands
+
+settings:
+  event_subscriptions:
+    request_url: https://YOUR_PUBLIC_APP_URL/slack/events
+    bot_events:
+      - app_mention
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
