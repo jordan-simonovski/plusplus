@@ -7,7 +7,8 @@ type MentionAction struct {
 	SymbolRun    string
 }
 
-var mentionActionPattern = regexp.MustCompile(`<@([A-Z0-9]+)>\s*([+-]+)`)
+// Second group: a run of pluses, or a run of ASCII/Unicode dashes (so iOS "—" works like "--").
+var mentionActionPattern = regexp.MustCompile(`<@([A-Z0-9]+)>\s*(\++|[-\x{2010}\x{2011}\x{2013}\x{2014}\x{2212}]+)`)
 
 func ParseMentionAction(text string) (MentionAction, bool) {
 	match := mentionActionPattern.FindStringSubmatch(text)

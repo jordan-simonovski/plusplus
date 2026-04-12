@@ -25,6 +25,13 @@ func TestParseMentionAction(t *testing.T) {
 			ok:         true,
 		},
 		{
+			name:       "parses mention with em dash",
+			input:      "hey <@U777> \u2014",
+			wantUserID: "U777",
+			wantRun:    "\u2014",
+			ok:         true,
+		},
+		{
 			name:  "rejects missing symbol run",
 			input: "<@U123> hello",
 			ok:    false,

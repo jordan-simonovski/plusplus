@@ -9,11 +9,11 @@ features:
     always_online: true
   slash_commands:
     - command: /leaderboard
-      url: https://YOUR_PUBLIC_APP_URL/slack/commands
+      url: https://plusplus-production.up.railway.app/slack/commands
       description: Show the all-time karma leaderboard.
       should_escape: false
     - command: /settings
-      url: https://YOUR_PUBLIC_APP_URL/slack/commands
+      url: https://plusplus-production.up.railway.app/slack/commands
       description: Configure channel settings (reply_mode thread|channel).
       should_escape: false
 
@@ -21,14 +21,16 @@ oauth_config:
   scopes:
     bot:
       - app_mentions:read
+      - channels:history
       - chat:write
       - commands
 
 settings:
   event_subscriptions:
-    request_url: https://YOUR_PUBLIC_APP_URL/slack/events
+    request_url: https://plusplus-production.up.railway.app/slack/events
     bot_events:
       - app_mention
+      - message.channels
   interactivity:
     is_enabled: false
   org_deploy_enabled: false

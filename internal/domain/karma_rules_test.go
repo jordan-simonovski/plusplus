@@ -63,6 +63,24 @@ func TestEvaluateKarmaAction(t *testing.T) {
 			expected: KarmaRuleOutcome{Kind: OutcomeApply, Delta: -3, Capped: false},
 		},
 		{
+			name: "em dash counts as two hyphens for removal",
+			input: EvaluateInput{
+				ActorUserID:  "A",
+				TargetUserID: "B",
+				SymbolRun:    "\u2014", // —
+			},
+			expected: KarmaRuleOutcome{Kind: OutcomeApply, Delta: -1, Capped: false},
+		},
+		{
+			name: "two em dashes match four hyphens",
+			input: EvaluateInput{
+				ActorUserID:  "A",
+				TargetUserID: "B",
+				SymbolRun:    "\u2014\u2014",
+			},
+			expected: KarmaRuleOutcome{Kind: OutcomeApply, Delta: -3, Capped: false},
+		},
+		{
 			name: "caps oversized plus run",
 			input: EvaluateInput{
 				ActorUserID:  "A",
