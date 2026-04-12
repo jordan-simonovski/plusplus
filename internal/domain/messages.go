@@ -8,16 +8,23 @@ func FormatKarmaAppliedMessage(targetHandle string, delta int, record KarmaRecor
 		verb = "gained"
 	}
 
-	line := fmt.Sprintf("%s %s %d karma. Total: %d. Max: %d.", targetHandle, verb, delta, record.KarmaTotal, record.KarmaMax)
+	line := italicize(fmt.Sprintf("%s %s %d karma. Total: %d.", targetHandle, verb, delta, record.KarmaTotal))
 	if !capped {
 		return line
 	}
 
 	if delta > 0 {
-		return fmt.Sprintf("%s\nBuzzkill mode enabled: capped to %d karma.\n%s", RandomCappedAwardSnark(maxKarmaPerAction), maxKarmaPerAction, line)
+		return fmt.Sprintf("%s\n%s\n%s",
+			italicize(RandomCappedAwardSnark(maxKarmaPerAction)),
+			italicize(fmt.Sprintf("Buzzkill mode enabled: capped to %d karma.", maxKarmaPerAction)),
+			line,
+		)
 	}
 
-	return fmt.Sprintf("Buzzkill mode enabled: capped to %d karma.\n%s", maxKarmaPerAction, line)
+	return fmt.Sprintf("%s\n%s",
+		italicize(fmt.Sprintf("Buzzkill mode enabled: capped to %d karma.", maxKarmaPerAction)),
+		line,
+	)
 }
 
 func FormatLeaderboardMessage(entries []KarmaRecord) string {
@@ -30,4 +37,8 @@ func FormatLeaderboardMessage(entries []KarmaRecord) string {
 		lines += fmt.Sprintf("\n%d. <@%s> - %d", idx+1, entry.UserID, entry.KarmaTotal)
 	}
 	return lines
+}
+
+func italicize(input string) string {
+	return fmt.Sprintf("_%s_", input)
 }
