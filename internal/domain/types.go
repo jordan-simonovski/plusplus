@@ -46,6 +46,8 @@ type KarmaAction struct {
 	SymbolRun    string
 	// SnarkLevel is 1–10; 0 means use DefaultSnarkLevel (channel default applies at the transport layer).
 	SnarkLevel int
+	// GroupBroadcast uses short, fixed copy for self-denial instead of random snark (user group karma).
+	GroupBroadcast bool
 }
 
 type LeaderboardRequest struct {

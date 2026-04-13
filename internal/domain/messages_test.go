@@ -60,3 +60,12 @@ func TestFormatKarmaAppliedMessageIncludesTotalWithoutMax(t *testing.T) {
 		t.Fatalf("unexpected message: %q", message)
 	}
 }
+
+func TestFormatGroupSelfKarmaRejection(t *testing.T) {
+	if got := FormatGroupSelfKarmaRejection("<@U9>", RejectionSelfAward); got != "<@U9> can't give karma to themselves." {
+		t.Fatalf("award: %q", got)
+	}
+	if got := FormatGroupSelfKarmaRejection("<@U9>", RejectionSelfRemove); got != "<@U9> can't remove karma from themselves." {
+		t.Fatalf("remove: %q", got)
+	}
+}

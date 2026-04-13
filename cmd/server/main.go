@@ -45,7 +45,7 @@ func main() {
 
 	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
-		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient)),
+		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient)),
 		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService)),
 		interactions,
 	)

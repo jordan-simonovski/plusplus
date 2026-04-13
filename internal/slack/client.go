@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
-const chatPostMessageURL = "https://slack.com/api/chat.postMessage"
+const (
+	chatPostMessageURL      = "https://slack.com/api/chat.postMessage"
+	usergroupsUsersListURL  = "https://slack.com/api/usergroups.users.list"
+)
 
 type APIClient struct {
 	token      string
@@ -75,4 +79,48 @@ func (c *APIClient) PostMessage(ctx context.Context, channelID string, text stri
 	}
 
 	return nil
+}
+
+type usergroupsUsersListResponse struct {
+	OK    bool     `json:"ok"`
+	Users []string `json:"users"`
+	Error string   `json:"error"`
+}
+
+// ListUserGroupMembers calls usergroups.users.list (requires usergroups:read).
+func (c *APIClient) ListUserGroupMembers(ctx context.Context, teamID, userGroupID string) ([]string, error) {
+	form := url.Values{}
+	form.Set("usergroup", userGroupID)
+	if teamID != "" {
+		form.Set("team_id", teamID)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, usergroupsUsersListURL, bytes.NewReader([]byte(form.Encode())))
+	if err != nil {
+		return nil, fmt.Errorf("create slack usergroups request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send slack usergroups request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read slack usergroups response: %w", err)
+	}
+
+	var out usergroupsUsersListResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("decode slack usergroups response: %w", err)
+	}
+
+	if !out.OK {
+		return nil, fmt.Errorf("slack usergroups.users.list failed: %s", out.Error)
+	}
+
+	return out.Users, nil
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"plusplus/internal/domain"
 	"plusplus/internal/parser"
+	"strings"
 )
 
 type KarmaActionService interface {
@@ -21,10 +22,16 @@ type WebClient interface {
 	PostMessage(ctx context.Context, channelID string, text string, threadTS string) error
 }
 
+// UserGroupMembersLister resolves Slack user group (subteam) IDs to member user IDs (usergroups.users.list).
+type UserGroupMembersLister interface {
+	ListUserGroupMembers(ctx context.Context, teamID, userGroupID string) ([]string, error)
+}
+
 type EventsProcessor struct {
 	signingSecret string
 	karmaService  KarmaActionService
 	settings      ChannelSettingsProvider
+	userGroups    UserGroupMembersLister
 	webClient     WebClient
 }
 
@@ -32,12 +39,14 @@ func NewEventsProcessor(
 	signingSecret string,
 	karmaService KarmaActionService,
 	settings ChannelSettingsProvider,
+	userGroups UserGroupMembersLister,
 	webClient WebClient,
 ) *EventsProcessor {
 	return &EventsProcessor{
 		signingSecret: signingSecret,
 		karmaService:  karmaService,
 		settings:      settings,
+		userGroups:    userGroups,
 		webClient:     webClient,
 	}
 }
@@ -85,8 +94,8 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actions := parser.ParseMentionActions(envelope.Event.Text)
-	if len(actions) == 0 {
+	segments := parser.ParseKarmaSegments(envelope.Event.Text)
+	if len(segments) == 0 {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
@@ -94,23 +103,32 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 
 	threadTS, snarkLevel := p.resolveChannelContext(r.Context(), envelope)
 
-	for _, parsed := range actions {
-		result, err := p.karmaService.HandleAction(r.Context(), domain.KarmaAction{
-			TeamID:       envelope.TeamID,
-			ActorUserID:  envelope.Event.User,
-			TargetUserID: parsed.TargetUserID,
-			TargetHandle: "<@" + parsed.TargetUserID + ">",
-			SymbolRun:    parsed.SymbolRun,
-			SnarkLevel:   snarkLevel,
-		})
-		if err != nil {
-			http.Error(w, "failed to apply karma", http.StatusInternalServerError)
-			return
-		}
+	for _, seg := range segments {
+		switch seg.Kind {
+		case parser.KarmaSegmentUser:
+			result, err := p.karmaService.HandleAction(r.Context(), domain.KarmaAction{
+				TeamID:       envelope.TeamID,
+				ActorUserID:  envelope.Event.User,
+				TargetUserID: seg.UserID,
+				TargetHandle: "<@" + seg.UserID + ">",
+				SymbolRun:    seg.SymbolRun,
+				SnarkLevel:   snarkLevel,
+			})
+			if err != nil {
+				http.Error(w, "failed to apply karma", http.StatusInternalServerError)
+				return
+			}
 
-		if err := p.webClient.PostMessage(r.Context(), envelope.Event.Channel, result.Message, threadTS); err != nil {
-			http.Error(w, "failed to post message", http.StatusBadGateway)
-			return
+			if err := p.webClient.PostMessage(r.Context(), envelope.Event.Channel, result.Message, threadTS); err != nil {
+				http.Error(w, "failed to post message", http.StatusBadGateway)
+				return
+			}
+
+		case parser.KarmaSegmentSubteam:
+			if err := p.handleSubteamKarma(r, envelope, seg, threadTS, snarkLevel); err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
 		}
 	}
 
@@ -147,4 +165,63 @@ func defaultThreadTS(event SlackEvent) string {
 
 func isSupportedKarmaEventType(eventType string) bool {
 	return eventType == "app_mention" || eventType == "message"
+}
+
+func (p *EventsProcessor) handleSubteamKarma(
+	r *http.Request,
+	envelope EventEnvelope,
+	seg parser.KarmaSegment,
+	threadTS string,
+	snarkLevel int,
+) error {
+	ctx := r.Context()
+	if p.userGroups == nil {
+		return p.webClient.PostMessage(ctx, envelope.Event.Channel, "Could not resolve user groups (not configured).", threadTS)
+	}
+
+	members, err := p.userGroups.ListUserGroupMembers(ctx, envelope.TeamID, seg.SubteamID)
+	if err != nil {
+		return p.webClient.PostMessage(ctx, envelope.Event.Channel, "Could not load members for that user group.", threadTS)
+	}
+
+	members = dedupePreserveOrder(members)
+	if len(members) == 0 {
+		return p.webClient.PostMessage(ctx, envelope.Event.Channel, "That user group has no members.", threadTS)
+	}
+
+	var lines []string
+	for _, uid := range members {
+		result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
+			TeamID:         envelope.TeamID,
+			ActorUserID:    envelope.Event.User,
+			TargetUserID:   uid,
+			TargetHandle:   "<@" + uid + ">",
+			SymbolRun:      seg.SymbolRun,
+			SnarkLevel:     snarkLevel,
+			GroupBroadcast: true,
+		})
+		if err != nil {
+			return err
+		}
+		lines = append(lines, result.Message)
+	}
+
+	combined := strings.Join(lines, "\n")
+	return p.webClient.PostMessage(ctx, envelope.Event.Channel, combined, threadTS)
+}
+
+func dedupePreserveOrder(ids []string) []string {
+	seen := make(map[string]struct{}, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }

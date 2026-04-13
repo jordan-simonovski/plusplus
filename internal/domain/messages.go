@@ -42,3 +42,13 @@ func FormatLeaderboardMessage(entries []KarmaRecord) string {
 func italicize(input string) string {
 	return fmt.Sprintf("_%s_", input)
 }
+
+// FormatGroupSelfKarmaRejection is a single line for user-group batches (plain text, no snark roulette).
+func FormatGroupSelfKarmaRejection(targetHandle string, reason RejectionReason) string {
+	switch reason {
+	case RejectionSelfRemove:
+		return fmt.Sprintf("%s can't remove karma from themselves.", targetHandle)
+	default:
+		return fmt.Sprintf("%s can't give karma to themselves.", targetHandle)
+	}
+}

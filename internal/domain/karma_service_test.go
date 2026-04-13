@@ -61,6 +61,29 @@ func TestKarmaServiceRejectsSelfAwardWithSnark(t *testing.T) {
 	}
 }
 
+func TestKarmaServiceGroupBroadcastSelfUsesPlainLine(t *testing.T) {
+	service := NewKarmaService(&fakeRepo{}, fakeSnark, 5)
+
+	result, err := service.HandleAction(context.Background(), KarmaAction{
+		TeamID:         "T1",
+		ActorUserID:    "U1",
+		TargetUserID:   "U1",
+		TargetHandle:   "<@U1>",
+		SymbolRun:      "++",
+		GroupBroadcast: true,
+	})
+	if err != nil {
+		t.Fatalf("handle action failed: %v", err)
+	}
+	if result.ShouldPersist {
+		t.Fatalf("expected no persistence")
+	}
+	want := FormatGroupSelfKarmaRejection("<@U1>", RejectionSelfAward)
+	if result.Message != want {
+		t.Fatalf("unexpected message: got %q want %q", result.Message, want)
+	}
+}
+
 func TestKarmaServiceLeaderboard(t *testing.T) {
 	repo := &fakeRepo{
 		leaderboard: []KarmaRecord{

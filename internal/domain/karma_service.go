@@ -43,7 +43,7 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 	}, minSymbolCount, s.maxKarmaPerAction+1)
 
 	if outcome.Kind == OutcomeReject {
-		return s.handleRejection(outcome.Reason, action.SnarkLevel), nil
+		return s.handleRejection(outcome.Reason, action), nil
 	}
 
 	record, err := s.repository.ApplyDelta(ctx, action.TeamID, action.TargetUserID, outcome.Delta)
@@ -73,10 +73,16 @@ func (s *KarmaService) HandleLeaderboard(ctx context.Context, request Leaderboar
 	}, nil
 }
 
-func (s *KarmaService) handleRejection(reason RejectionReason, snarkLevel int) KarmaResult {
+func (s *KarmaService) handleRejection(reason RejectionReason, action KarmaAction) KarmaResult {
+	if action.GroupBroadcast {
+		switch reason {
+		case RejectionSelfAward, RejectionSelfRemove:
+			return KarmaResult{ShouldPersist: false, Message: FormatGroupSelfKarmaRejection(action.TargetHandle, reason)}
+		}
+	}
 	switch reason {
 	case RejectionSelfAward, RejectionSelfRemove:
-		return KarmaResult{ShouldPersist: false, Message: s.pickSnark(reason, snarkLevel)}
+		return KarmaResult{ShouldPersist: false, Message: s.pickSnark(reason, action.SnarkLevel)}
 	case RejectionInvalidFormat:
 		return KarmaResult{ShouldPersist: false, Message: "Invalid karma command. Use @user ++ to @user ++++++ or -- to ------."}
 	default:

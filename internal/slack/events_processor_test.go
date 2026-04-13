@@ -17,7 +17,7 @@ import (
 )
 
 func TestEventsProcessorURLVerification(t *testing.T) {
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, &fakeWebClient{})
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
 	payload := []byte(`{"type":"url_verification","challenge":"abc123"}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
 	addSlackSignatureHeaders(req, "secret", payload)
@@ -41,7 +41,7 @@ func TestEventsProcessorURLVerification(t *testing.T) {
 
 func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, web)
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -69,7 +69,7 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 
 func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, web)
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -96,7 +96,7 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 
 func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, web)
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -125,7 +125,7 @@ func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 	web := &fakeWebClient{}
 	settings := &fakeReplyModeService{mode: ReplyModeChannel}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, settings, web)
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, settings, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -149,7 +149,7 @@ func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 }
 
 func TestEventsProcessorRejectsInvalidSignature(t *testing.T) {
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, &fakeWebClient{})
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
 	payload := []byte(`{"type":"url_verification","challenge":"abc123"}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
 	req.Header.Set("X-Slack-Request-Timestamp", fmt.Sprintf("%d", time.Now().Unix()))
@@ -163,12 +163,109 @@ func TestEventsProcessorRejectsInvalidSignature(t *testing.T) {
 	}
 }
 
+func TestEventsProcessorSubteamKarmaCombinesLines(t *testing.T) {
+	web := &fakeWebClient{}
+	lister := &fakeUserGroupLister{ids: []string{"U2", "U3"}}
+	processor := NewEventsProcessor("secret", subteamKarmaFake{}, nil, lister, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <!subteam^S12345|@admins> ++++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(web.posts))
+	}
+	want := "U2:group\nU3:group"
+	if web.posts[0].text != want {
+		t.Fatalf("unexpected combined text: %q", web.posts[0].text)
+	}
+}
+
+func TestEventsProcessorSubteamWithoutListerPostsNotice(t *testing.T) {
+	web := &fakeWebClient{}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <!subteam^S1|@admins> ++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 1 || web.posts[0].text != "Could not resolve user groups (not configured)." {
+		t.Fatalf("unexpected posts: %+v", web.posts)
+	}
+}
+
+func TestEventsProcessorSubteamEmptyGroupPostsNotice(t *testing.T) {
+	web := &fakeWebClient{}
+	lister := &fakeUserGroupLister{ids: nil}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, lister, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <!subteam^S1|@admins> ++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 1 || web.posts[0].text != "That user group has no members." {
+		t.Fatalf("unexpected posts: %+v", web.posts)
+	}
+}
+
 type fakeKarmaActionService struct{}
 
 func (f fakeKarmaActionService) HandleAction(_ context.Context, action domain.KarmaAction) (domain.KarmaResult, error) {
 	return domain.KarmaResult{
 		ShouldPersist: true,
 		Message:       "applied " + action.SymbolRun,
+	}, nil
+}
+
+type fakeUserGroupLister struct {
+	ids []string
+	err error
+}
+
+func (f *fakeUserGroupLister) ListUserGroupMembers(_ context.Context, _, _ string) ([]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.ids, nil
+}
+
+type subteamKarmaFake struct{}
+
+func (subteamKarmaFake) HandleAction(_ context.Context, action domain.KarmaAction) (domain.KarmaResult, error) {
+	suffix := "single"
+	if action.GroupBroadcast {
+		suffix = "group"
+	}
+	return domain.KarmaResult{
+		ShouldPersist: true,
+		Message:       action.TargetUserID + ":" + suffix,
 	}, nil
 }
 

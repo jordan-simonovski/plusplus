@@ -95,3 +95,21 @@ func TestParseMentionAction(t *testing.T) {
 		})
 	}
 }
+
+func TestParseKarmaSegmentsIncludesSubteams(t *testing.T) {
+	got := ParseKarmaSegments("<!subteam^S0614TZR72F|@admins> ++++")
+	if len(got) != 1 || got[0].Kind != KarmaSegmentSubteam || got[0].SubteamID != "S0614TZR72F" || got[0].SymbolRun != "++++" {
+		t.Fatalf("unexpected segment: %+v", got)
+	}
+
+	mixed := ParseKarmaSegments("<@U1> ++ <!subteam^S9|@grp> ---")
+	if len(mixed) != 2 {
+		t.Fatalf("want 2 segments, got %d", len(mixed))
+	}
+	if mixed[0].Kind != KarmaSegmentUser || mixed[0].UserID != "U1" || mixed[0].SymbolRun != "++" {
+		t.Fatalf("seg0: %+v", mixed[0])
+	}
+	if mixed[1].Kind != KarmaSegmentSubteam || mixed[1].SubteamID != "S9" || mixed[1].SymbolRun != "---" {
+		t.Fatalf("seg1: %+v", mixed[1])
+	}
+}
