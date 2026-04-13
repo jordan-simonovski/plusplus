@@ -113,10 +113,10 @@ func (p *InteractionsProcessor) processInteraction(w http.ResponseWriter, r *htt
 }
 
 type slackInteractionPayload struct {
-	Type    string            `json:"type"`
-	User    slackEntityID     `json:"user"`
-	Team    slackEntityID     `json:"team"`
-	Channel slackEntityID     `json:"channel"`
+	Type    string             `json:"type"`
+	User    slackEntityID      `json:"user"`
+	Team    slackEntityID      `json:"team"`
+	Channel slackEntityID      `json:"channel"`
 	Actions []slackBlockAction `json:"actions"`
 }
 
@@ -125,8 +125,8 @@ type slackEntityID struct {
 }
 
 type slackBlockAction struct {
-	ActionID        string `json:"action_id"`
-	SelectedOption  struct {
+	ActionID       string `json:"action_id"`
+	SelectedOption struct {
 		Value string `json:"value"`
 	} `json:"selected_option"`
 }

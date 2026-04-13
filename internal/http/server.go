@@ -22,13 +22,19 @@ type Server struct {
 	mux *http.ServeMux
 }
 
-func NewServer(eventsHandler EventsHandler, commandsHandler CommandsHandler, interactionsHandler InteractionsHandler) *Server {
+func NewServer(eventsHandler EventsHandler, commandsHandler CommandsHandler, interactionsHandler InteractionsHandler, oauthInstall, oauthCallback http.HandlerFunc) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", handleHealth)
 	mux.HandleFunc("/slack/events", eventsHandler.HandleEvents)
 	mux.HandleFunc("/slack/commands", commandsHandler.HandleCommand)
 	if interactionsHandler != nil {
 		mux.HandleFunc("/slack/interactions", interactionsHandler.HandleInteraction)
+	}
+	if oauthInstall != nil {
+		mux.HandleFunc("/slack/install", oauthInstall)
+	}
+	if oauthCallback != nil {
+		mux.HandleFunc("/slack/oauth/callback", oauthCallback)
 	}
 
 	return &Server{mux: mux}

@@ -287,7 +287,7 @@ func (f *fakeReplyModeService) GetChannelSettings(_ context.Context, _ string, _
 	return f.mode, domain.DefaultSnarkLevel, nil
 }
 
-func (f *fakeWebClient) PostMessage(_ context.Context, channelID, text, threadTS string) error {
+func (f *fakeWebClient) PostMessage(_ context.Context, _ string, channelID, text, threadTS string) error {
 	f.posts = append(f.posts, postedMessage{channelID: channelID, text: text, threadTS: threadTS})
 	return nil
 }

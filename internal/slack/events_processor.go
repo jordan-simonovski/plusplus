@@ -19,7 +19,7 @@ type ChannelSettingsProvider interface {
 }
 
 type WebClient interface {
-	PostMessage(ctx context.Context, channelID string, text string, threadTS string) error
+	PostMessage(ctx context.Context, teamID string, channelID string, text string, threadTS string) error
 }
 
 // UserGroupMembersLister resolves Slack user group (subteam) IDs to member user IDs (usergroups.users.list).
@@ -119,7 +119,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if err := p.webClient.PostMessage(r.Context(), envelope.Event.Channel, result.Message, threadTS); err != nil {
+			if err := p.webClient.PostMessage(r.Context(), envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
 				http.Error(w, "failed to post message", http.StatusBadGateway)
 				return
 			}
@@ -176,17 +176,17 @@ func (p *EventsProcessor) handleSubteamKarma(
 ) error {
 	ctx := r.Context()
 	if p.userGroups == nil {
-		return p.webClient.PostMessage(ctx, envelope.Event.Channel, "Could not resolve user groups (not configured).", threadTS)
+		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "Could not resolve user groups (not configured).", threadTS)
 	}
 
 	members, err := p.userGroups.ListUserGroupMembers(ctx, envelope.TeamID, seg.SubteamID)
 	if err != nil {
-		return p.webClient.PostMessage(ctx, envelope.Event.Channel, "Could not load members for that user group.", threadTS)
+		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "Could not load members for that user group.", threadTS)
 	}
 
 	members = dedupePreserveOrder(members)
 	if len(members) == 0 {
-		return p.webClient.PostMessage(ctx, envelope.Event.Channel, "That user group has no members.", threadTS)
+		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "That user group has no members.", threadTS)
 	}
 
 	var lines []string
@@ -207,7 +207,7 @@ func (p *EventsProcessor) handleSubteamKarma(
 	}
 
 	combined := strings.Join(lines, "\n")
-	return p.webClient.PostMessage(ctx, envelope.Event.Channel, combined, threadTS)
+	return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, combined, threadTS)
 }
 
 func dedupePreserveOrder(ids []string) []string {

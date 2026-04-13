@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"plusplus/internal/config"
 	"plusplus/internal/domain"
+	transport "plusplus/internal/http"
 	"plusplus/internal/persistence"
 	appslack "plusplus/internal/slack"
-	"plusplus/internal/config"
-	transport "plusplus/internal/http"
 	"syscall"
 	"time"
 
@@ -41,13 +41,27 @@ func main() {
 	settingsRepo := persistence.NewPostgresSettingsRepository(db)
 	karmaService := domain.NewKarmaService(karmaRepo, domain.RandomSnarkPicker(), cfg.MaxKarmaPerAction)
 	settingsService := appslack.NewChannelSettingsService(settingsRepo)
-	slackClient := appslack.NewAPIClient(cfg.SlackBotToken)
+
+	var workspaceRepo *persistence.PostgresWorkspaceRepository
+	if cfg.WorkspaceEncryptor != nil {
+		workspaceRepo = persistence.NewPostgresWorkspaceRepository(db, cfg.WorkspaceEncryptor)
+	}
+	slackClient := appslack.NewTeamResolvingClient(workspaceRepo, cfg.SlackBotToken)
+
+	var oauthInstall, oauthCallback http.HandlerFunc
+	if cfg.SlackClientID != "" && workspaceRepo != nil {
+		oauth := appslack.NewOAuthHandler(cfg.SlackClientID, cfg.SlackClientSecret, cfg.PublicBaseURL, workspaceRepo)
+		oauthInstall = oauth.Install
+		oauthCallback = oauth.Callback
+	}
 
 	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
 		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient)),
 		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService)),
 		interactions,
+		oauthInstall,
+		oauthCallback,
 	)
 
 	httpServer := &http.Server{

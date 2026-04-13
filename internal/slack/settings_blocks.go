@@ -36,7 +36,7 @@ func settingsBlocks(currentLevel int) []map[string]interface{} {
 	}
 
 	selectEl := map[string]interface{}{
-		"type": "static_select",
+		"type":      "static_select",
 		"action_id": "snark_level_select",
 		"placeholder": map[string]interface{}{
 			"type": "plain_text",
@@ -57,7 +57,7 @@ func settingsBlocks(currentLevel int) []map[string]interface{} {
 			},
 		},
 		{
-			"type": "actions",
+			"type":     "actions",
 			"elements": []interface{}{selectEl},
 		},
 	}

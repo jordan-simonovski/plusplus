@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	chatPostMessageURL      = "https://slack.com/api/chat.postMessage"
-	usergroupsUsersListURL  = "https://slack.com/api/usergroups.users.list"
+	chatPostMessageURL     = "https://slack.com/api/chat.postMessage"
+	usergroupsUsersListURL = "https://slack.com/api/usergroups.users.list"
 )
 
 type APIClient struct {
