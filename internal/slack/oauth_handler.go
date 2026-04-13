@@ -2,7 +2,9 @@ package slack
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,10 +15,9 @@ import (
 	"time"
 )
 
-const (
-	oauthStateCookie = "slack_oauth_state"
-	oauthScopes      = "app_mentions:read,channels:history,chat:write,commands,usergroups:read"
-)
+const oauthScopes = "app_mentions:read,channels:history,chat:write,commands,usergroups:read"
+
+const oauthStateNonceLen = 16
 
 type WorkspaceInstaller interface {
 	UpsertInstallation(ctx context.Context, teamID, botToken string) error
@@ -27,15 +28,19 @@ type OAuthHandler struct {
 	clientID        string
 	clientSecret    string
 	redirectBaseURL string
+	stateSecret     string
 	installer       WorkspaceInstaller
 	httpClient      *http.Client
 }
 
-func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller) *OAuthHandler {
+// NewOAuthHandler builds the OAuth flow. stateSecret should be a server-only value (e.g. SLACK_SIGNING_SECRET)
+// used to HMAC-sign the OAuth state parameter so CSRF does not rely on cookies (fragile on cross-site redirects).
+func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller, stateSecret string) *OAuthHandler {
 	return &OAuthHandler{
 		clientID:        clientID,
 		clientSecret:    clientSecret,
 		redirectBaseURL: strings.TrimRight(redirectBaseURL, "/"),
+		stateSecret:     stateSecret,
 		installer:       installer,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
@@ -51,29 +56,18 @@ func (h *OAuthHandler) redirectURI(r *http.Request) string {
 	return base + "/slack/oauth/callback"
 }
 
-// Install redirects to Slack's OAuth authorize URL and sets a CSRF cookie.
+// Install redirects to Slack's OAuth authorize URL (state is HMAC-signed, no cookie).
 func (h *OAuthHandler) Install(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	stateBytes := make([]byte, 24)
-	if _, err := rand.Read(stateBytes); err != nil {
+	state, err := newSignedOAuthState(h.stateSecret)
+	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	state := base64.RawURLEncoding.EncodeToString(stateBytes)
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     oauthStateCookie,
-		Value:    state,
-		Path:     "/",
-		MaxAge:   600,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
-	})
 
 	q := url.Values{}
 	q.Set("client_id", h.clientID)
@@ -98,21 +92,10 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := r.FormValue("state")
-	cookie, err := r.Cookie(oauthStateCookie)
-	if err != nil || cookie.Value == "" || cookie.Value != state {
+	if !verifySignedOAuthState(h.stateSecret, state) {
 		http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 		return
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     oauthStateCookie,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
-	})
 
 	code := r.FormValue("code")
 	if code == "" {
@@ -186,6 +169,41 @@ func (h *OAuthHandler) exchangeCode(ctx context.Context, code, redirectURI strin
 	}
 
 	return out.Team.ID, out.AccessToken, nil
+}
+
+// newSignedOAuthState returns an opaque state: base64url(nonce || HMAC-SHA256(secret, nonce)).
+func newSignedOAuthState(secret string) (string, error) {
+	if secret == "" {
+		return "", fmt.Errorf("empty state secret")
+	}
+	nonce := make([]byte, oauthStateNonceLen)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(nonce)
+	tag := mac.Sum(nil)
+	raw := append(append([]byte(nil), nonce...), tag...)
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func verifySignedOAuthState(secret string, state string) bool {
+	if secret == "" || state == "" {
+		return false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(state)
+	if err != nil {
+		return false
+	}
+	if len(raw) != oauthStateNonceLen+sha256.Size {
+		return false
+	}
+	nonce := raw[:oauthStateNonceLen]
+	tag := raw[oauthStateNonceLen:]
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(nonce)
+	expected := mac.Sum(nil)
+	return hmac.Equal(tag, expected)
 }
 
 func inferPublicBaseURL(r *http.Request) string {

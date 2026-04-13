@@ -30,14 +30,30 @@ func NewServer(eventsHandler EventsHandler, commandsHandler CommandsHandler, int
 	if interactionsHandler != nil {
 		mux.HandleFunc("/slack/interactions", interactionsHandler.HandleInteraction)
 	}
-	if oauthInstall != nil {
-		mux.HandleFunc("/slack/install", oauthInstall)
+	if oauthInstall == nil {
+		oauthInstall = oauthInstallDisabled
 	}
-	if oauthCallback != nil {
-		mux.HandleFunc("/slack/oauth/callback", oauthCallback)
+	if oauthCallback == nil {
+		oauthCallback = oauthCallbackDisabled
 	}
+	mux.HandleFunc("/slack/install", oauthInstall)
+	mux.HandleFunc("/slack/oauth/callback", oauthCallback)
 
 	return &Server{mux: mux}
+}
+
+func oauthInstallDisabled(w http.ResponseWriter, _ *http.Request) {
+	writeOAuthDisabled(w)
+}
+
+func oauthCallbackDisabled(w http.ResponseWriter, _ *http.Request) {
+	writeOAuthDisabled(w)
+}
+
+func writeOAuthDisabled(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = w.Write([]byte("OAuth is not enabled. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and TOKEN_ENCRYPTION_KEY on the server, then redeploy.\n"))
 }
 
 func (s *Server) Handler() http.Handler {
