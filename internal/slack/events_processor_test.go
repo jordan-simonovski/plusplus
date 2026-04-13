@@ -94,6 +94,29 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	}
 }
 
+func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
+	web := &fakeWebClient{}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
+		"event":{"type":"message","user":"U1","text":"<@UBOT> <@U2> ++++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 0 {
+		t.Fatalf("expected duplicate message event skipped, got %d posts", len(web.posts))
+	}
+}
+
 func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)

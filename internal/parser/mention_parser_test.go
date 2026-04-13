@@ -113,3 +113,28 @@ func TestParseKarmaSegmentsIncludesSubteams(t *testing.T) {
 		t.Fatalf("seg1: %+v", mixed[1])
 	}
 }
+
+func TestParseKarmaSegmentsRejectsMixedPlusMinusNoise(t *testing.T) {
+	garbage := "<@UBOT> ---++--++++++----×÷xxxooo"
+	if seg := ParseKarmaSegments(garbage); len(seg) != 0 {
+		t.Fatalf("expected no segments, got %+v", seg)
+	}
+}
+
+func TestParseKarmaSegmentsAllowsMinusThenWords(t *testing.T) {
+	got := ParseKarmaSegments("<@U9> --- thanks")
+	if len(got) != 1 || got[0].UserID != "U9" || got[0].SymbolRun != "---" {
+		t.Fatalf("unexpected: %+v", got)
+	}
+}
+
+func TestDedupeKarmaSegments(t *testing.T) {
+	in := []KarmaSegment{
+		{Kind: KarmaSegmentUser, UserID: "U1", SymbolRun: "++"},
+		{Kind: KarmaSegmentUser, UserID: "U1", SymbolRun: "+++"},
+	}
+	got := DedupeKarmaSegments(in)
+	if len(got) != 1 || got[0].SymbolRun != "++" {
+		t.Fatalf("want first segment only, got %+v", got)
+	}
+}

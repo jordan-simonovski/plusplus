@@ -37,6 +37,27 @@ func TestKarmaServiceHandleAction(t *testing.T) {
 	}
 }
 
+func TestKarmaServiceInvalidFormatIsSilent(t *testing.T) {
+	service := NewKarmaService(&fakeRepo{}, fakeSnark, 5)
+
+	result, err := service.HandleAction(context.Background(), KarmaAction{
+		TeamID:       "T1",
+		ActorUserID:  "U1",
+		TargetUserID: "U2",
+		TargetHandle: "<@U2>",
+		SymbolRun:    "+",
+	})
+	if err != nil {
+		t.Fatalf("handle action failed: %v", err)
+	}
+	if result.ShouldPersist {
+		t.Fatalf("expected no persistence")
+	}
+	if result.Message != "" {
+		t.Fatalf("expected no client-visible message, got %q", result.Message)
+	}
+}
+
 func TestKarmaServiceRejectsSelfAwardWithSnark(t *testing.T) {
 	service := NewKarmaService(&fakeRepo{}, fakeSnark, 5)
 

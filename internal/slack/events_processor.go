@@ -94,7 +94,15 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	segments := parser.ParseKarmaSegments(envelope.Event.Text)
+	// Slack delivers both app_mention and message for the same post when the bot is @-mentioned.
+	// Process app_mention only; otherwise karma is applied twice.
+	if envelope.Event.Type == "message" && messageEventDuplicatesAppMention(envelope) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		return
+	}
+
+	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(envelope.Event.Text))
 	if len(segments) == 0 {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
@@ -119,9 +127,11 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if err := p.webClient.PostMessage(r.Context(), envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
-				http.Error(w, "failed to post message", http.StatusBadGateway)
-				return
+			if result.Message != "" {
+				if err := p.webClient.PostMessage(r.Context(), envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
+					http.Error(w, "failed to post message", http.StatusBadGateway)
+					return
+				}
 			}
 
 		case parser.KarmaSegmentSubteam:
@@ -167,6 +177,26 @@ func isSupportedKarmaEventType(eventType string) bool {
 	return eventType == "app_mention" || eventType == "message"
 }
 
+func botUserIDFromAuthorizations(auth []SlackAuthorization) string {
+	for _, a := range auth {
+		if a.IsBot && a.UserID != "" {
+			return a.UserID
+		}
+	}
+	if len(auth) > 0 && auth[0].UserID != "" {
+		return auth[0].UserID
+	}
+	return ""
+}
+
+func messageEventDuplicatesAppMention(envelope EventEnvelope) bool {
+	botID := botUserIDFromAuthorizations(envelope.Authorizations)
+	if botID == "" {
+		return false
+	}
+	return strings.Contains(envelope.Event.Text, "<@"+botID+">")
+}
+
 func (p *EventsProcessor) handleSubteamKarma(
 	r *http.Request,
 	envelope EventEnvelope,
@@ -203,11 +233,15 @@ func (p *EventsProcessor) handleSubteamKarma(
 		if err != nil {
 			return err
 		}
-		lines = append(lines, result.Message)
+		if result.Message != "" {
+			lines = append(lines, result.Message)
+		}
 	}
 
-	combined := strings.Join(lines, "\n")
-	return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, combined, threadTS)
+	if len(lines) == 0 {
+		return nil
+	}
+	return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, strings.Join(lines, "\n"), threadTS)
 }
 
 func dedupePreserveOrder(ids []string) []string {

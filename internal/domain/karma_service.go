@@ -30,10 +30,7 @@ func NewKarmaService(repository KarmaRepository, pickSnark SnarkPicker, maxKarma
 
 func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (KarmaResult, error) {
 	if action.TargetUserID == "" || action.TargetHandle == "" {
-		return KarmaResult{
-			ShouldPersist: false,
-			Message:       "Invalid karma command. Missing target user.",
-		}, nil
+		return KarmaResult{ShouldPersist: false, Message: ""}, nil
 	}
 
 	outcome := EvaluateKarmaActionWithLimits(EvaluateInput{
@@ -84,9 +81,9 @@ func (s *KarmaService) handleRejection(reason RejectionReason, action KarmaActio
 	case RejectionSelfAward, RejectionSelfRemove:
 		return KarmaResult{ShouldPersist: false, Message: s.pickSnark(reason, action.SnarkLevel)}
 	case RejectionInvalidFormat:
-		return KarmaResult{ShouldPersist: false, Message: "Invalid karma command. Use @user ++ to @user ++++++ or -- to ------."}
+		return KarmaResult{ShouldPersist: false, Message: ""}
 	default:
-		return KarmaResult{ShouldPersist: false, Message: "Invalid karma command."}
+		return KarmaResult{ShouldPersist: false, Message: ""}
 	}
 }
 

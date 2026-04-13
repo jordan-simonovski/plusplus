@@ -7,12 +7,18 @@ const (
 	ReplyModeChannel ReplyMode = "channel"
 )
 
+type SlackAuthorization struct {
+	UserID string `json:"user_id"`
+	IsBot  bool   `json:"is_bot"`
+}
+
 type EventEnvelope struct {
-	Type      string     `json:"type"`
-	Token     string     `json:"token,omitempty"`
-	Challenge string     `json:"challenge,omitempty"`
-	TeamID    string     `json:"team_id,omitempty"`
-	Event     SlackEvent `json:"event"`
+	Type             string               `json:"type"`
+	Token            string               `json:"token,omitempty"`
+	Challenge        string               `json:"challenge,omitempty"`
+	TeamID           string               `json:"team_id,omitempty"`
+	Event            SlackEvent           `json:"event"`
+	Authorizations   []SlackAuthorization `json:"authorizations,omitempty"`
 }
 
 type SlackEvent struct {

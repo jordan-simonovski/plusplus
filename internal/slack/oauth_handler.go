@@ -69,9 +69,10 @@ func (h *OAuthHandler) Install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Do not send user_scope for bot-only OAuth; an empty user_scope has produced Slack
+	// callbacks with state= (empty). Omit the parameter entirely.
 	q := url.Values{}
 	q.Set("client_id", h.clientID)
-	q.Set("user_scope", "")
 	q.Set("scope", oauthScopes)
 	q.Set("redirect_uri", h.redirectURI(r))
 	q.Set("state", state)
@@ -92,6 +93,10 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := r.FormValue("state")
+	if state == "" {
+		http.Error(w, "missing OAuth state. Open https://"+r.Host+"/slack/install on this host (do not use Slack's generic install button unless it includes state).", http.StatusBadRequest)
+		return
+	}
 	if !verifySignedOAuthState(h.stateSecret, state) {
 		http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 		return
