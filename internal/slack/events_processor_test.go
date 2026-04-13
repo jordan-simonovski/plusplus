@@ -56,11 +56,41 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	if web.channelID != "C1" {
-		t.Fatalf("unexpected channel: %s", web.channelID)
+	if len(web.posts) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(web.posts))
 	}
-	if web.threadTS != "123.4" {
-		t.Fatalf("expected thread reply, got %q", web.threadTS)
+	if web.posts[0].channelID != "C1" {
+		t.Fatalf("unexpected channel: %s", web.posts[0].channelID)
+	}
+	if web.posts[0].threadTS != "123.4" {
+		t.Fatalf("expected thread reply, got %q", web.posts[0].threadTS)
+	}
+}
+
+func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
+	web := &fakeWebClient{}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> Bravo <@U2> ++++++ , from <@U3> +++++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 2 {
+		t.Fatalf("expected 2 posts, got %d", len(web.posts))
+	}
+	for i, want := range []string{"applied ++++++", "applied +++++"} {
+		if web.posts[i].text != want {
+			t.Fatalf("post %d: got %q want %q", i, web.posts[i].text, want)
+		}
 	}
 }
 
@@ -81,11 +111,14 @@ func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	if web.channelID != "C1" {
-		t.Fatalf("unexpected channel: %s", web.channelID)
+	if len(web.posts) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(web.posts))
 	}
-	if web.threadTS != "123.4" {
-		t.Fatalf("expected thread reply, got %q", web.threadTS)
+	if web.posts[0].channelID != "C1" {
+		t.Fatalf("unexpected channel: %s", web.posts[0].channelID)
+	}
+	if web.posts[0].threadTS != "123.4" {
+		t.Fatalf("expected thread reply, got %q", web.posts[0].threadTS)
 	}
 }
 
@@ -107,8 +140,11 @@ func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	if web.threadTS != "" {
-		t.Fatalf("expected in-channel reply with empty thread ts, got %q", web.threadTS)
+	if len(web.posts) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(web.posts))
+	}
+	if web.posts[0].threadTS != "" {
+		t.Fatalf("expected in-channel reply with empty thread ts, got %q", web.posts[0].threadTS)
 	}
 }
 
@@ -137,6 +173,10 @@ func (f fakeKarmaActionService) HandleAction(_ context.Context, action domain.Ka
 }
 
 type fakeWebClient struct {
+	posts []postedMessage
+}
+
+type postedMessage struct {
 	channelID string
 	text      string
 	threadTS  string
@@ -146,14 +186,12 @@ type fakeReplyModeService struct {
 	mode ReplyMode
 }
 
-func (f *fakeReplyModeService) GetReplyMode(_ context.Context, _ string, _ string) (ReplyMode, error) {
-	return f.mode, nil
+func (f *fakeReplyModeService) GetChannelSettings(_ context.Context, _ string, _ string) (ReplyMode, int, error) {
+	return f.mode, domain.DefaultSnarkLevel, nil
 }
 
 func (f *fakeWebClient) PostMessage(_ context.Context, channelID, text, threadTS string) error {
-	f.channelID = channelID
-	f.text = text
-	f.threadTS = threadTS
+	f.posts = append(f.posts, postedMessage{channelID: channelID, text: text, threadTS: threadTS})
 	return nil
 }
 

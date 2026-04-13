@@ -43,7 +43,7 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 	}, minSymbolCount, s.maxKarmaPerAction+1)
 
 	if outcome.Kind == OutcomeReject {
-		return s.handleRejection(outcome.Reason), nil
+		return s.handleRejection(outcome.Reason, action.SnarkLevel), nil
 	}
 
 	record, err := s.repository.ApplyDelta(ctx, action.TeamID, action.TargetUserID, outcome.Delta)
@@ -53,7 +53,7 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 
 	return KarmaResult{
 		ShouldPersist: true,
-		Message:       FormatKarmaAppliedMessage(action.TargetHandle, outcome.Delta, record, outcome.Capped, s.maxKarmaPerAction),
+		Message:       FormatKarmaAppliedMessage(action.TargetHandle, outcome.Delta, record, outcome.Capped, s.maxKarmaPerAction, action.SnarkLevel),
 	}, nil
 }
 
@@ -73,10 +73,10 @@ func (s *KarmaService) HandleLeaderboard(ctx context.Context, request Leaderboar
 	}, nil
 }
 
-func (s *KarmaService) handleRejection(reason RejectionReason) KarmaResult {
+func (s *KarmaService) handleRejection(reason RejectionReason, snarkLevel int) KarmaResult {
 	switch reason {
 	case RejectionSelfAward, RejectionSelfRemove:
-		return KarmaResult{ShouldPersist: false, Message: s.pickSnark(reason)}
+		return KarmaResult{ShouldPersist: false, Message: s.pickSnark(reason, snarkLevel)}
 	case RejectionInvalidFormat:
 		return KarmaResult{ShouldPersist: false, Message: "Invalid karma command. Use @user ++ to @user ++++++ or -- to ------."}
 	default:

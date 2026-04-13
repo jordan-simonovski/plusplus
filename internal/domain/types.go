@@ -44,6 +44,8 @@ type KarmaAction struct {
 	TargetUserID string
 	TargetHandle string
 	SymbolRun    string
+	// SnarkLevel is 1–10; 0 means use DefaultSnarkLevel (channel default applies at the transport layer).
+	SnarkLevel int
 }
 
 type LeaderboardRequest struct {
@@ -60,4 +62,4 @@ type KarmaRepository interface {
 	GetLeaderboard(ctx context.Context, teamID string, limit int) ([]KarmaRecord, error)
 }
 
-type SnarkPicker func(reason RejectionReason) string
+type SnarkPicker func(reason RejectionReason, snarkLevel int) string

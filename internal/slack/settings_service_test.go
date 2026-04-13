@@ -35,15 +35,26 @@ func TestChannelSettingsServiceSetReplyMode(t *testing.T) {
 }
 
 type fakeSettingsStore struct {
-	mode      string
-	savedMode string
+	mode       string
+	savedMode  string
+	level      int
+	savedLevel int
 }
 
-func (f *fakeSettingsStore) GetReplyMode(_ context.Context, _ string, _ string) (string, error) {
-	return f.mode, nil
+func (f *fakeSettingsStore) GetChannelSettings(_ context.Context, _ string, _ string) (string, int, error) {
+	level := f.level
+	if level == 0 {
+		level = 5
+	}
+	return f.mode, level, nil
 }
 
 func (f *fakeSettingsStore) SetReplyMode(_ context.Context, _ string, _ string, _ string, replyMode string) error {
 	f.savedMode = replyMode
+	return nil
+}
+
+func (f *fakeSettingsStore) SetSnarkLevel(_ context.Context, _ string, _ string, _ string, snarkLevel int) error {
+	f.savedLevel = snarkLevel
 	return nil
 }

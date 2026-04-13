@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -54,8 +55,9 @@ func TestKarmaServiceRejectsSelfAwardWithSnark(t *testing.T) {
 		t.Fatalf("expected no persistence")
 	}
 
-	if result.Message != "snark:self_award" {
-		t.Fatalf("unexpected snark message: %s", result.Message)
+	want := fmt.Sprintf("snark:%s:%d", RejectionSelfAward, DefaultSnarkLevel)
+	if result.Message != want {
+		t.Fatalf("unexpected snark message: got %q want %q", result.Message, want)
 	}
 }
 
@@ -96,6 +98,6 @@ func (f *fakeRepo) GetLeaderboard(_ context.Context, _ string, _ int) ([]KarmaRe
 	return f.leaderboard, nil
 }
 
-func fakeSnark(reason RejectionReason) string {
-	return "snark:" + string(reason)
+func fakeSnark(reason RejectionReason, snarkLevel int) string {
+	return fmt.Sprintf("snark:%s:%d", reason, NormalizeSnarkLevel(snarkLevel))
 }

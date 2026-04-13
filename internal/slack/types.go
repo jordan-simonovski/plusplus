@@ -1,5 +1,12 @@
 package slack
 
+type ReplyMode string
+
+const (
+	ReplyModeThread  ReplyMode = "thread"
+	ReplyModeChannel ReplyMode = "channel"
+)
+
 type EventEnvelope struct {
 	Type      string     `json:"type"`
 	Token     string     `json:"token,omitempty"`
@@ -35,7 +42,8 @@ type SlashCommandPayload struct {
 }
 
 type MessageResponse struct {
-	ResponseType string `json:"response_type"`
-	Text         string `json:"text"`
-	ThreadTS     string `json:"thread_ts,omitempty"`
+	ResponseType string      `json:"response_type"`
+	Text         string      `json:"text,omitempty"`
+	ThreadTS     string      `json:"thread_ts,omitempty"`
+	Blocks       interface{} `json:"blocks,omitempty"`
 }

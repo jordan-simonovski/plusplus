@@ -9,19 +9,12 @@ import (
 	"plusplus/internal/parser"
 )
 
-type ReplyMode string
-
-const (
-	ReplyModeThread  ReplyMode = "thread"
-	ReplyModeChannel ReplyMode = "channel"
-)
-
 type KarmaActionService interface {
 	HandleAction(ctx context.Context, action domain.KarmaAction) (domain.KarmaResult, error)
 }
 
-type ReplyModeProvider interface {
-	GetReplyMode(ctx context.Context, teamID string, channelID string) (ReplyMode, error)
+type ChannelSettingsProvider interface {
+	GetChannelSettings(ctx context.Context, teamID string, channelID string) (ReplyMode, int, error)
 }
 
 type WebClient interface {
@@ -31,14 +24,14 @@ type WebClient interface {
 type EventsProcessor struct {
 	signingSecret string
 	karmaService  KarmaActionService
-	settings      ReplyModeProvider
+	settings      ChannelSettingsProvider
 	webClient     WebClient
 }
 
 func NewEventsProcessor(
 	signingSecret string,
 	karmaService KarmaActionService,
-	settings ReplyModeProvider,
+	settings ChannelSettingsProvider,
 	webClient WebClient,
 ) *EventsProcessor {
 	return &EventsProcessor{
@@ -92,50 +85,57 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed, ok := parser.ParseMentionAction(envelope.Event.Text)
-	if !ok {
+	actions := parser.ParseMentionActions(envelope.Event.Text)
+	if len(actions) == 0 {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
 	}
 
-	result, err := p.karmaService.HandleAction(r.Context(), domain.KarmaAction{
-		TeamID:       envelope.TeamID,
-		ActorUserID:  envelope.Event.User,
-		TargetUserID: parsed.TargetUserID,
-		TargetHandle: "<@" + parsed.TargetUserID + ">",
-		SymbolRun:    parsed.SymbolRun,
-	})
-	if err != nil {
-		http.Error(w, "failed to apply karma", http.StatusInternalServerError)
-		return
-	}
+	threadTS, snarkLevel := p.resolveChannelContext(r.Context(), envelope)
 
-	threadTS := p.resolveThreadTS(r.Context(), envelope)
-	if err := p.webClient.PostMessage(r.Context(), envelope.Event.Channel, result.Message, threadTS); err != nil {
-		http.Error(w, "failed to post message", http.StatusBadGateway)
-		return
+	for _, parsed := range actions {
+		result, err := p.karmaService.HandleAction(r.Context(), domain.KarmaAction{
+			TeamID:       envelope.TeamID,
+			ActorUserID:  envelope.Event.User,
+			TargetUserID: parsed.TargetUserID,
+			TargetHandle: "<@" + parsed.TargetUserID + ">",
+			SymbolRun:    parsed.SymbolRun,
+			SnarkLevel:   snarkLevel,
+		})
+		if err != nil {
+			http.Error(w, "failed to apply karma", http.StatusInternalServerError)
+			return
+		}
+
+		if err := p.webClient.PostMessage(r.Context(), envelope.Event.Channel, result.Message, threadTS); err != nil {
+			http.Error(w, "failed to post message", http.StatusBadGateway)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
 
-func (p *EventsProcessor) resolveThreadTS(ctx context.Context, envelope EventEnvelope) string {
+func (p *EventsProcessor) resolveChannelContext(ctx context.Context, envelope EventEnvelope) (threadTS string, snarkLevel int) {
+	snarkLevel = domain.DefaultSnarkLevel
 	if p.settings == nil {
-		return defaultThreadTS(envelope.Event)
+		return defaultThreadTS(envelope.Event), snarkLevel
 	}
 
-	mode, err := p.settings.GetReplyMode(ctx, envelope.TeamID, envelope.Event.Channel)
+	mode, level, err := p.settings.GetChannelSettings(ctx, envelope.TeamID, envelope.Event.Channel)
 	if err != nil {
-		return defaultThreadTS(envelope.Event)
+		return defaultThreadTS(envelope.Event), snarkLevel
 	}
+
+	snarkLevel = domain.NormalizeSnarkLevel(level)
 
 	if mode == ReplyModeChannel {
-		return ""
+		return "", snarkLevel
 	}
 
-	return defaultThreadTS(envelope.Event)
+	return defaultThreadTS(envelope.Event), snarkLevel
 }
 
 func defaultThreadTS(event SlackEvent) string {

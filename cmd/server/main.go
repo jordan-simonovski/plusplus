@@ -43,9 +43,11 @@ func main() {
 	settingsService := appslack.NewChannelSettingsService(settingsRepo)
 	slackClient := appslack.NewAPIClient(cfg.SlackBotToken)
 
+	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
 		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient)),
 		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService)),
+		interactions,
 	)
 
 	httpServer := &http.Server{

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -70,6 +71,14 @@ type fakeSettingsCommandService struct{}
 
 func (s fakeSettingsCommandService) SetReplyMode(_ context.Context, _ string, _ string, _ string, mode ReplyMode) (string, error) {
 	return "reply mode set to " + string(mode), nil
+}
+
+func (s fakeSettingsCommandService) SetSnarkLevel(_ context.Context, _ string, _ string, _ string, level int) (string, error) {
+	return "snark level set to " + strconv.Itoa(level), nil
+}
+
+func (s fakeSettingsCommandService) GetSnarkLevel(_ context.Context, _ string, _ string) (int, error) {
+	return 5, nil
 }
 
 func addSignedHeaders(req *http.Request, secret string, body []byte) {

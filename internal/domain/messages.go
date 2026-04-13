@@ -2,7 +2,7 @@ package domain
 
 import "fmt"
 
-func FormatKarmaAppliedMessage(targetHandle string, delta int, record KarmaRecord, capped bool, maxKarmaPerAction int) string {
+func FormatKarmaAppliedMessage(targetHandle string, delta int, record KarmaRecord, capped bool, maxKarmaPerAction int, snarkLevel int) string {
 	verb := "lost"
 	if delta > 0 {
 		verb = "gained"
@@ -15,7 +15,7 @@ func FormatKarmaAppliedMessage(targetHandle string, delta int, record KarmaRecor
 
 	if delta > 0 {
 		return fmt.Sprintf("%s\n%s\n%s",
-			italicize(RandomCappedAwardSnark(maxKarmaPerAction)),
+			italicize(RandomCappedAwardSnark(maxKarmaPerAction, snarkLevel)),
 			italicize(fmt.Sprintf("Buzzkill mode enabled: capped to %d karma.", maxKarmaPerAction)),
 			line,
 		)

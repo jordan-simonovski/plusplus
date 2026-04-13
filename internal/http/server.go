@@ -14,15 +14,22 @@ type CommandsHandler interface {
 	HandleCommand(http.ResponseWriter, *http.Request)
 }
 
+type InteractionsHandler interface {
+	HandleInteraction(http.ResponseWriter, *http.Request)
+}
+
 type Server struct {
 	mux *http.ServeMux
 }
 
-func NewServer(eventsHandler EventsHandler, commandsHandler CommandsHandler) *Server {
+func NewServer(eventsHandler EventsHandler, commandsHandler CommandsHandler, interactionsHandler InteractionsHandler) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", handleHealth)
 	mux.HandleFunc("/slack/events", eventsHandler.HandleEvents)
 	mux.HandleFunc("/slack/commands", commandsHandler.HandleCommand)
+	if interactionsHandler != nil {
+		mux.HandleFunc("/slack/interactions", interactionsHandler.HandleInteraction)
+	}
 
 	return &Server{mux: mux}
 }
