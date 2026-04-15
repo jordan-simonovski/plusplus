@@ -117,6 +117,28 @@ func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
 	}
 }
 
+func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
+	web := &fakeWebClient{}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"event":{"type":"message","subtype":"message_changed","user":"U1","text":"<@U2> ++++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 0 {
+		t.Fatalf("expected message_changed skipped, got %d posts", len(web.posts))
+	}
+}
+
 func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)

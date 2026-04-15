@@ -54,6 +54,7 @@ make test-integration
 2. Add bot token scopes:
    - `app_mentions:read`
    - `channels:history`
+   - `groups:history`
    - `chat:write`
    - `commands`
 3. Configure **Event Subscriptions**:
@@ -61,6 +62,7 @@ make test-integration
    - Subscribe to bot events:
      - `app_mention`
      - `message.channels`
+     - `message.groups` (private channels)
 4. Configure Slash Commands:
    - `/leaderboard` Request URL: `https://<public-url>/slack/commands`
    - `/settings` Request URL: `https://<public-url>/slack/commands`

@@ -88,7 +88,9 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if envelope.Event.Subtype == "bot_message" || envelope.Event.BotID != "" {
+	// Only plain "message sent" events have no subtype (Slack omits it). Anything else
+	// (message_changed, bot_message, channel_join, file_share, …) must not apply karma.
+	if envelope.Event.Subtype != "" || envelope.Event.BotID != "" {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
