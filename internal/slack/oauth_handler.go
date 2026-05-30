@@ -49,11 +49,18 @@ func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer W
 }
 
 func (h *OAuthHandler) redirectURI(r *http.Request) string {
-	base := h.redirectBaseURL
-	if base == "" {
-		base = inferPublicBaseURL(r)
+	return h.baseURL(r) + "/slack/oauth/callback"
+}
+
+func (h *OAuthHandler) installURL(r *http.Request) string {
+	return h.baseURL(r) + "/slack/install"
+}
+
+func (h *OAuthHandler) baseURL(r *http.Request) string {
+	if h.redirectBaseURL != "" {
+		return h.redirectBaseURL
 	}
-	return base + "/slack/oauth/callback"
+	return inferPublicBaseURL(r)
 }
 
 // Install redirects to Slack's OAuth authorize URL (state is HMAC-signed, no cookie).
@@ -94,7 +101,10 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	state := r.FormValue("state")
 	if state == "" {
-		http.Error(w, "missing OAuth state. Open https://"+r.Host+"/slack/install on this host (do not use Slack's generic install button unless it includes state).", http.StatusBadRequest)
+		// Slack's generic install button sends no state. Restart the flow through our
+		// install endpoint, which mints a signed state. The attacker-supplied code (if any)
+		// is discarded unexchanged, so CSRF protection holds.
+		http.Redirect(w, r, h.installURL(r), http.StatusFound)
 		return
 	}
 	if !verifySignedOAuthState(h.stateSecret, state) {
