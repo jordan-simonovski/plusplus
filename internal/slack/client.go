@@ -14,6 +14,7 @@ import (
 const (
 	chatPostMessageURL     = "https://slack.com/api/chat.postMessage"
 	usergroupsUsersListURL = "https://slack.com/api/usergroups.users.list"
+	usersInfoURL           = "https://slack.com/api/users.info"
 )
 
 type APIClient struct {
@@ -123,4 +124,64 @@ func (c *APIClient) ListUserGroupMembers(ctx context.Context, teamID, userGroupI
 	}
 
 	return out.Users, nil
+}
+
+type usersInfoResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error"`
+	User  struct {
+		RealName string `json:"real_name"`
+		Profile  struct {
+			DisplayName string `json:"display_name"`
+			RealName    string `json:"real_name"`
+		} `json:"profile"`
+	} `json:"user"`
+}
+
+// DisplayName calls users.info (requires users:read) and returns the best
+// available human name: display_name, then profile.real_name, then real_name.
+func (c *APIClient) DisplayName(ctx context.Context, userID string) (string, error) {
+	form := url.Values{}
+	form.Set("user", userID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, usersInfoURL, bytes.NewReader([]byte(form.Encode())))
+	if err != nil {
+		return "", fmt.Errorf("create slack users.info request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("send slack users.info request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read slack users.info response: %w", err)
+	}
+
+	var out usersInfoResponse
+	if err := json.Unmarshal(body, &out); err != nil {
+		return "", fmt.Errorf("decode slack users.info response: %w", err)
+	}
+
+	if !out.OK {
+		return "", fmt.Errorf("slack users.info failed: %s", out.Error)
+	}
+
+	if name := firstNonEmpty(out.User.Profile.DisplayName, out.User.Profile.RealName, out.User.RealName); name != "" {
+		return name, nil
+	}
+	return "", fmt.Errorf("slack users.info returned no name for %s", userID)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

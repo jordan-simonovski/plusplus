@@ -14,7 +14,7 @@
   <article class="legal">
     <a class="legal__back" href="index.html">&larr; Back to PlusPlus</a>
     <h1>Privacy Policy</h1>
-    <p class="legal__meta">Last updated: 30 May 2026</p>
+    <p class="legal__meta">Last updated: 31 May 2026</p>
 
     <p>
       PlusPlus is a Slack app that tracks karma points awarded between members of a workspace.
@@ -35,7 +35,7 @@
     <h2>What we do not store</h2>
     <ul>
       <li><strong>Message content.</strong> Incoming Slack events are processed in memory only to detect <code>++</code> / <code>--</code> patterns. The text of your messages is never written to disk or logged.</li>
-      <li><strong>Profile data.</strong> No real names, display names, email addresses, avatars, or any other Slack profile fields.</li>
+      <li><strong>Persisted profile data.</strong> Display names and real names are fetched from Slack on demand to show who gained or lost karma, but they are held only briefly in an in-memory cache and never written to our database. No email addresses, avatars, or other profile fields are read.</li>
       <li><strong>Cross-site tracking.</strong> No advertising identifiers and no third-party trackers. This website uses Vercel Web Analytics (see below), which is cookieless — no cookies are set, and you are not tracked across other sites.</li>
     </ul>
 
@@ -43,6 +43,8 @@
     <p>
       Stored data is used solely to provide the app's features: keeping karma scores, rendering the
       <code>/leaderboard</code>, applying per-channel settings, and posting replies on your behalf.
+      Display names are read from Slack at the moment a reply or leaderboard is built, so messages
+      name people instead of pinging them.
       We do not sell, rent, or share your data with third parties, and we do not use it for advertising or profiling.
     </p>
 

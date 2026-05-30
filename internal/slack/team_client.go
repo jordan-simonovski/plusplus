@@ -65,3 +65,12 @@ func (c *TeamResolvingClient) ListUserGroupMembers(ctx context.Context, teamID, 
 	}
 	return client.ListUserGroupMembers(ctx, teamID, userGroupID)
 }
+
+// DisplayName implements domain.NameResolver.
+func (c *TeamResolvingClient) DisplayName(ctx context.Context, teamID, userID string) (string, error) {
+	client, err := c.apiClient(ctx, teamID)
+	if err != nil {
+		return "", err
+	}
+	return client.DisplayName(ctx, userID)
+}

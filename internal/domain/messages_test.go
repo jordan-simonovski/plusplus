@@ -56,16 +56,32 @@ func TestFormatKarmaAppliedMessageIncludesTotalWithoutMax(t *testing.T) {
 	if strings.Contains(message, "Max:") {
 		t.Fatalf("did not expect max in message: %q", message)
 	}
-	if message != "_<@U2> gained 3 karma. Total: 12._" {
+	if message != "_*<@U2>* gained 3 karma. Total: 12._" {
+		t.Fatalf("unexpected message: %q", message)
+	}
+}
+
+func TestFormatKarmaAppliedMessageBoldItalicizesName(t *testing.T) {
+	message := FormatKarmaAppliedMessage("Jane Doe", 2, KarmaRecord{KarmaTotal: 5}, false, 5, DefaultSnarkLevel)
+	if message != "_*Jane Doe* gained 2 karma. Total: 5._" {
 		t.Fatalf("unexpected message: %q", message)
 	}
 }
 
 func TestFormatGroupSelfKarmaRejection(t *testing.T) {
-	if got := FormatGroupSelfKarmaRejection("<@U9>", RejectionSelfAward); got != "<@U9> can't give karma to themselves." {
+	if got := FormatGroupSelfKarmaRejection("Jane", RejectionSelfAward); got != "*_Jane_* can't give karma to themselves." {
 		t.Fatalf("award: %q", got)
 	}
-	if got := FormatGroupSelfKarmaRejection("<@U9>", RejectionSelfRemove); got != "<@U9> can't remove karma from themselves." {
+	if got := FormatGroupSelfKarmaRejection("Jane", RejectionSelfRemove); got != "*_Jane_* can't remove karma from themselves." {
 		t.Fatalf("remove: %q", got)
+	}
+}
+
+func TestFormatLeaderboardMessageBoldItalicizesNames(t *testing.T) {
+	entries := []KarmaRecord{{UserID: "U9", KarmaTotal: 14}, {UserID: "U7", KarmaTotal: 12}}
+	names := []string{"Jane", "John"}
+	want := "All-time karma leaderboard\n1. *_Jane_* - 14\n2. *_John_* - 12"
+	if got := FormatLeaderboardMessage(entries, names); got != want {
+		t.Fatalf("unexpected leaderboard: %q", got)
 	}
 }

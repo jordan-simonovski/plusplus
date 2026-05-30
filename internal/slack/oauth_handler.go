@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const oauthScopes = "app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read"
+const oauthScopes = "app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read"
 
 const oauthStateNonceLen = 16
 

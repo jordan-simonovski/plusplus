@@ -92,6 +92,7 @@ oauth_config:
       - commands
       - groups:history
       - usergroups:read
+      - users:read
   pkce_enabled: false
 settings:
   event_subscriptions:

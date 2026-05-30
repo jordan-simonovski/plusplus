@@ -32,7 +32,6 @@ func main() {
 
 	karmaRepo := persistence.NewDynamoKarmaRepository(dynamoClient, cfg.KarmaTable)
 	settingsRepo := persistence.NewDynamoSettingsRepository(dynamoClient, cfg.SettingsTable)
-	karmaService := domain.NewKarmaService(karmaRepo, domain.RandomSnarkPicker(), cfg.MaxKarmaPerAction)
 	settingsService := appslack.NewChannelSettingsService(settingsRepo)
 
 	var workspaceRepo *persistence.DynamoWorkspaceRepository
@@ -44,6 +43,9 @@ func main() {
 		tokenStore = workspaceRepo
 	}
 	slackClient := appslack.NewTeamResolvingClient(tokenStore, cfg.SlackBotToken)
+
+	nameResolver := appslack.NewCachedNameResolver(slackClient, time.Hour)
+	karmaService := domain.NewKarmaService(karmaRepo, domain.RandomSnarkPicker(), cfg.MaxKarmaPerAction, nameResolver)
 
 	var oauthInstall, oauthCallback http.HandlerFunc
 	if cfg.SlackClientID != "" && workspaceRepo != nil {

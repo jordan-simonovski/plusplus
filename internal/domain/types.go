@@ -70,4 +70,10 @@ type KarmaRepository interface {
 	GetLeaderboard(ctx context.Context, teamID string, limit int) ([]KarmaRecord, error)
 }
 
+// NameResolver maps a Slack user ID to a human display name. Implementations
+// reach Slack's users.info; the service degrades to a mention on any error.
+type NameResolver interface {
+	DisplayName(ctx context.Context, teamID string, userID string) (string, error)
+}
+
 type SnarkPicker func(reason RejectionReason, snarkLevel int) string

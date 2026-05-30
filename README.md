@@ -65,6 +65,8 @@ make test-integration
    - `groups:history`
    - `chat:write`
    - `commands`
+   - `usergroups:read`
+   - `users:read`
 3. Configure **Event Subscriptions**:
    - Request URL: `https://<public-url>/slack/events`
    - Subscribe to bot events:
