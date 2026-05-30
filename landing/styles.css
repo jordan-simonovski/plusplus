@@ -293,6 +293,11 @@ code {
   margin: 40px 0 12px;
   letter-spacing: -0.01em;
 }
+.legal h3 {
+  font-size: 1.05rem;
+  margin: 24px 0 6px;
+  letter-spacing: -0.01em;
+}
 .legal p { color: var(--text); margin: 0 0 14px; }
 .legal ul { color: var(--text); margin: 0 0 14px; padding-left: 22px; }
 .legal li { margin: 6px 0; }

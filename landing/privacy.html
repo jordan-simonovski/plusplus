@@ -36,7 +36,7 @@
     <ul>
       <li><strong>Message content.</strong> Incoming Slack events are processed in memory only to detect <code>++</code> / <code>--</code> patterns. The text of your messages is never written to disk or logged.</li>
       <li><strong>Profile data.</strong> No real names, display names, email addresses, avatars, or any other Slack profile fields.</li>
-      <li><strong>Tracking data.</strong> No advertising identifiers, no behavioural analytics, no third-party trackers. This website sets no cookies.</li>
+      <li><strong>Cross-site tracking.</strong> No advertising identifiers and no third-party trackers. This website uses Vercel Web Analytics (see below), which is cookieless — no cookies are set, and you are not tracked across other sites.</li>
     </ul>
 
     <h2>How your data is used</h2>
@@ -51,6 +51,16 @@
       Data is stored in Amazon DynamoDB. The app runs as a small server-side service. We rely on these
       infrastructure providers (AWS, the application host, and Vercel for this static website) purely as
       data processors; they do not receive your data for their own purposes.
+    </p>
+
+    <h2>Website analytics</h2>
+    <p>
+      This website (the page you are reading) uses Vercel Web Analytics to count page views and visitors
+      in aggregate. It is privacy-friendly and cookieless: it sets no cookies, uses no persistent
+      identifiers, and does not track you across other websites. It applies only to this marketing site —
+      the Slack app itself does not use it. See
+      <a href="https://vercel.com/docs/analytics/privacy-policy" target="_blank" rel="noopener">Vercel's analytics privacy documentation</a>
+      for details.
     </p>
 
     <h2>Data isolation</h2>
@@ -68,8 +78,12 @@
 
     <h2>Contact</h2>
     <p>
-      Questions, or a deletion request? Open an issue at
-      <a href="https://github.com/jordan-simonovski/plusplus/issues" target="_blank" rel="noopener">github.com/jordan-simonovski/plusplus</a>.
+      Questions, or a request to access or delete your data? Email
+      <a href="mailto:contact@pluspluskarma.dev">contact@pluspluskarma.dev</a>. We aim to respond within 2
+      business days. You can also open an issue on
+      <a href="https://github.com/jordan-simonovski/plusplus/issues" target="_blank" rel="noopener">GitHub</a>,
+      though that requires a GitHub account — email does not. See also our
+      <a href="support.html">support page</a>.
     </p>
 
     <h2>Changes to this policy</h2>
@@ -78,5 +92,10 @@
       reflected here before they take effect.
     </p>
   </article>
+
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

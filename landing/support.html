@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="slack-app-id" content="A0AS7F57GJH" />
+  <title>Support — PlusPlus</title>
+  <meta name="description" content="Get help with PlusPlus, the Slack karma bot. Contact support, find answers to common questions, and learn how to manage your data." />
+  <meta name="robots" content="index, follow" />
+  <link rel="icon" type="image/png" href="plusplus-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <article class="legal">
+    <a class="legal__back" href="index.html">&larr; Back to PlusPlus</a>
+    <h1>Support</h1>
+    <p class="legal__meta">Need a hand with PlusPlus? Here's how to reach us and answers to common questions.</p>
+
+    <h2>Contact us</h2>
+    <p>
+      Email <a href="mailto:contact@pluspluskarma.dev">contact@pluspluskarma.dev</a> with any question, bug,
+      or feature request. No account or sign-up required — just send a message.
+      We aim to respond within <strong>2 business days</strong>.
+    </p>
+    <p>
+      Prefer to track issues in the open? You can also report bugs on
+      <a href="https://github.com/jordan-simonovski/plusplus/issues" target="_blank" rel="noopener">GitHub Issues</a>
+      (a GitHub account is required for that option — email always works without one).
+    </p>
+
+    <h2>Getting started</h2>
+    <ul>
+      <li><strong>Install:</strong> click <em>Add to Slack</em> on the <a href="index.html">home page</a> and approve the requested permissions.</li>
+      <li><strong>Invite the bot to a channel:</strong> run <code>/invite @plusplus</code> in the channel where you want karma tracked.</li>
+      <li><strong>Award karma:</strong> mention someone followed by two or more pluses — <code>@sam ++</code>. Use <code>--</code> to dock karma.</li>
+      <li><strong>See standings:</strong> run <code>/leaderboard</code> for the all-time scores in your workspace.</li>
+    </ul>
+
+    <h2>Common questions</h2>
+
+    <h3>Why didn't my <code>++</code> register?</h3>
+    <p>
+      A few rules apply: you need at least two symbols (<code>+</code> alone does nothing), you can't award or
+      dock your own karma, and each message moves a score by at most ±5. Make sure the bot has been invited to
+      the channel with <code>/invite @plusplus</code>.
+    </p>
+
+    <h3>Can I change where the bot replies?</h3>
+    <p>
+      Yes. Use <code>/settings reply_mode thread</code> to keep replies in a thread, or
+      <code>/settings reply_mode channel</code> to post them in the channel.
+    </p>
+
+    <h3>How do I remove the app or delete our data?</h3>
+    <p>
+      Remove PlusPlus from <em>Settings &amp; administration → Manage apps</em> in your Slack workspace; this
+      revokes the bot token. To have your workspace's stored data (karma counters, settings, and the stored
+      token) deleted, email <a href="mailto:contact@pluspluskarma.dev">contact@pluspluskarma.dev</a> and we'll
+      remove it. See the <a href="privacy.html">privacy policy</a> for details on what is stored.
+    </p>
+
+    <h2>Privacy</h2>
+    <p>
+      For details on what data PlusPlus stores and how to request deletion, read the
+      <a href="privacy.html">privacy policy</a>.
+    </p>
+  </article>
+
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
