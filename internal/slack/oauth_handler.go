@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,13 @@ import (
 const oauthScopes = "app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read"
 
 const oauthStateNonceLen = 16
+
+// oauthStateTimestampLen is the big-endian int64 unix-seconds prefix bound into the
+// signed state so a captured state expires (single-use would need shared storage).
+const oauthStateTimestampLen = 8
+
+// oauthStateMaxAge bounds how long a minted state stays valid.
+const oauthStateMaxAge = 10 * time.Minute
 
 type WorkspaceInstaller interface {
 	UpsertInstallation(ctx context.Context, teamID, botToken string) error
@@ -186,19 +194,22 @@ func (h *OAuthHandler) exchangeCode(ctx context.Context, code, redirectURI strin
 	return out.Team.ID, out.AccessToken, nil
 }
 
-// newSignedOAuthState returns an opaque state: base64url(nonce || HMAC-SHA256(secret, nonce)).
+// newSignedOAuthState returns an opaque state:
+// base64url(nonce || ts || HMAC-SHA256(secret, nonce || ts)). The timestamp is
+// covered by the MAC so it cannot be rolled forward without the secret.
 func newSignedOAuthState(secret string) (string, error) {
 	if secret == "" {
 		return "", fmt.Errorf("empty state secret")
 	}
-	nonce := make([]byte, oauthStateNonceLen)
-	if _, err := rand.Read(nonce); err != nil {
+	payload := make([]byte, oauthStateNonceLen+oauthStateTimestampLen)
+	if _, err := rand.Read(payload[:oauthStateNonceLen]); err != nil {
 		return "", err
 	}
+	binary.BigEndian.PutUint64(payload[oauthStateNonceLen:], uint64(time.Now().Unix()))
+
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(nonce)
-	tag := mac.Sum(nil)
-	raw := append(append([]byte(nil), nonce...), tag...)
+	_, _ = mac.Write(payload)
+	raw := mac.Sum(payload)
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
@@ -210,15 +221,24 @@ func verifySignedOAuthState(secret string, state string) bool {
 	if err != nil {
 		return false
 	}
-	if len(raw) != oauthStateNonceLen+sha256.Size {
+	const payloadLen = oauthStateNonceLen + oauthStateTimestampLen
+	if len(raw) != payloadLen+sha256.Size {
 		return false
 	}
-	nonce := raw[:oauthStateNonceLen]
-	tag := raw[oauthStateNonceLen:]
+	payload := raw[:payloadLen]
+	tag := raw[payloadLen:]
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(nonce)
-	expected := mac.Sum(nil)
-	return hmac.Equal(tag, expected)
+	_, _ = mac.Write(payload)
+	if !hmac.Equal(tag, mac.Sum(nil)) {
+		return false
+	}
+
+	ts := int64(binary.BigEndian.Uint64(payload[oauthStateNonceLen:]))
+	skew := time.Now().Unix() - ts
+	if skew < 0 {
+		skew = -skew
+	}
+	return skew <= int64(oauthStateMaxAge.Seconds())
 }
 
 func inferPublicBaseURL(r *http.Request) string {

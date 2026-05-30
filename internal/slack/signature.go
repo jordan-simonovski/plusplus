@@ -28,8 +28,11 @@ func VerifyRequestSignature(signingSecret, timestampHeader, signatureHeader stri
 		return fmt.Errorf("parse timestamp: %w", err)
 	}
 
-	now := time.Now().Unix()
-	if now-ts > int64(maxSignatureAge.Seconds()) {
+	skew := time.Now().Unix() - ts
+	if skew < 0 {
+		skew = -skew
+	}
+	if skew > int64(maxSignatureAge.Seconds()) {
 		return ErrStaleTimestamp
 	}
 

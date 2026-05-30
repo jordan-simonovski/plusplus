@@ -25,15 +25,23 @@ func NewTeamResolvingClient(store BotTokenStore, fallbackToken string) *TeamReso
 }
 
 func (c *TeamResolvingClient) apiClient(ctx context.Context, teamID string) (*APIClient, error) {
+	// Multi-tenant mode: the per-workspace token is authoritative. A missing row
+	// must fail, not borrow another workspace's (or the global) token.
 	if c.store != nil {
 		tok, err := c.store.GetBotToken(ctx, teamID)
-		if err == nil && tok != "" {
-			return NewAPIClient(tok), nil
-		}
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				return nil, fmt.Errorf("workspace %s not installed", teamID)
+			}
 			return nil, err
 		}
+		if tok == "" {
+			return nil, fmt.Errorf("empty bot token for workspace %s", teamID)
+		}
+		return NewAPIClient(tok), nil
 	}
+
+	// Single-workspace / dev: no store, fall back to the static bot token.
 	if c.fallbackToken != "" {
 		return NewAPIClient(c.fallbackToken), nil
 	}

@@ -20,7 +20,8 @@ Slack karma service implemented in Go, designed as a long-running container.
 - `DYNAMODB_WORKSPACES_TABLE` (default: `plusplus_workspaces`)
 - `MAX_KARMA_PER_ACTION` (default: `5`)
 - `SLACK_SIGNING_SECRET` (required for real Slack traffic)
-- `SLACK_BOT_TOKEN` (required to post messages via Slack Web API)
+- `SLACK_BOT_TOKEN` (single-workspace / dev only; used to post via the Slack Web API when OAuth is **not** configured). When `SLACK_CLIENT_ID` is set (multi-tenant OAuth), per-workspace tokens are authoritative and this value is ignored.
+- `PUBLIC_BASE_URL` (required when `SLACK_CLIENT_ID` is set; fixes the OAuth `redirect_uri` to a trusted origin instead of inferring it from request headers)
 
 Tables are created automatically on startup (on-demand / pay-per-request billing) if they do not already exist. The IAM principal therefore needs `dynamodb:CreateTable` and `dynamodb:DescribeTable` in addition to the item operations (see deployment section).
 

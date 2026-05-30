@@ -36,10 +36,14 @@ func main() {
 	settingsService := appslack.NewChannelSettingsService(settingsRepo)
 
 	var workspaceRepo *persistence.DynamoWorkspaceRepository
+	// tokenStore stays a nil interface (not a typed-nil) when OAuth is disabled, so
+	// TeamResolvingClient correctly selects the single-workspace fallback token.
+	var tokenStore appslack.BotTokenStore
 	if cfg.WorkspaceEncryptor != nil {
 		workspaceRepo = persistence.NewDynamoWorkspaceRepository(dynamoClient, cfg.WorkspacesTable, cfg.WorkspaceEncryptor)
+		tokenStore = workspaceRepo
 	}
-	slackClient := appslack.NewTeamResolvingClient(workspaceRepo, cfg.SlackBotToken)
+	slackClient := appslack.NewTeamResolvingClient(tokenStore, cfg.SlackBotToken)
 
 	var oauthInstall, oauthCallback http.HandlerFunc
 	if cfg.SlackClientID != "" && workspaceRepo != nil {
