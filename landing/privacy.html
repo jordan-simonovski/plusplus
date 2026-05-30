@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="slack-app-id" content="A0AS7F57GJH" />
+  <title>Privacy Policy — PlusPlus</title>
+  <meta name="description" content="Privacy policy for the PlusPlus Slack karma bot. What we store, what we don't, and how to delete your data." />
+  <meta name="robots" content="index, follow" />
+  <link rel="icon" type="image/png" href="plusplus-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <article class="legal">
+    <a class="legal__back" href="index.html">&larr; Back to PlusPlus</a>
+    <h1>Privacy Policy</h1>
+    <p class="legal__meta">Last updated: 30 May 2026</p>
+
+    <p>
+      PlusPlus is a Slack app that tracks karma points awarded between members of a workspace.
+      This policy describes exactly what data the app handles, what it stores, and how you can have it removed.
+      It is written to match what the software actually does.
+    </p>
+
+    <h2>What we store</h2>
+    <p>When you install PlusPlus and use it, the app stores the following in its database:</p>
+    <ul>
+      <li><strong>Slack identifiers</strong> — workspace (team) IDs, channel IDs, and user IDs. These are the opaque IDs Slack assigns (e.g. <code>U012ABCDEF</code>), not names or email addresses.</li>
+      <li><strong>Karma counters</strong> — each user's running karma total and their all-time peak, scoped to the workspace.</li>
+      <li><strong>Channel settings</strong> — the reply mode (thread or channel) and snark level for a channel, plus the user ID that last changed them.</li>
+      <li><strong>Timestamps</strong> — when karma was last applied, when settings were last changed, and when the app was installed.</li>
+      <li><strong>Workspace bot token</strong> — the OAuth bot token Slack issues at install time, so the app can post replies. It is encrypted at rest (AES-256-GCM) and is a credential, not personal data.</li>
+    </ul>
+
+    <h2>What we do not store</h2>
+    <ul>
+      <li><strong>Message content.</strong> Incoming Slack events are processed in memory only to detect <code>++</code> / <code>--</code> patterns. The text of your messages is never written to disk or logged.</li>
+      <li><strong>Profile data.</strong> No real names, display names, email addresses, avatars, or any other Slack profile fields.</li>
+      <li><strong>Tracking data.</strong> No advertising identifiers, no behavioural analytics, no third-party trackers. This website sets no cookies.</li>
+    </ul>
+
+    <h2>How your data is used</h2>
+    <p>
+      Stored data is used solely to provide the app's features: keeping karma scores, rendering the
+      <code>/leaderboard</code>, applying per-channel settings, and posting replies on your behalf.
+      We do not sell, rent, or share your data with third parties, and we do not use it for advertising or profiling.
+    </p>
+
+    <h2>Where your data is stored</h2>
+    <p>
+      Data is stored in Amazon DynamoDB. The app runs as a small server-side service. We rely on these
+      infrastructure providers (AWS, the application host, and Vercel for this static website) purely as
+      data processors; they do not receive your data for their own purposes.
+    </p>
+
+    <h2>Data isolation</h2>
+    <p>
+      Every record is keyed by workspace (team) ID. Karma totals, settings, and tokens for one workspace
+      are never readable from another. The leaderboard only ever returns scores from your own workspace.
+    </p>
+
+    <h2>Retention and deletion</h2>
+    <p>
+      Data is retained while the app is installed. Removing PlusPlus from your workspace revokes the bot
+      token. To have your workspace's stored data (karma counters, settings, and the stored token) deleted,
+      contact us and we will remove it.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions, or a deletion request? Open an issue at
+      <a href="https://github.com/jordan-simonovski/plusplus/issues" target="_blank" rel="noopener">github.com/jordan-simonovski/plusplus</a>.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If this policy changes, the "last updated" date above will change with it. Material changes will be
+      reflected here before they take effect.
+    </p>
+  </article>
+</body>
+</html>

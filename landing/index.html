@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="slack-app-id" content="A0AS7F57GJH" />
+  <title>PlusPlus — Karma for Slack, with attitude</title>
+  <meta name="description" content="A Slack bot that tracks karma. Mention someone with ++ to award points, -- to dock them. Leaderboards, per-channel settings, and configurable snark." />
+
+  <meta property="og:title" content="PlusPlus — Karma for Slack" />
+  <meta property="og:description" content="Mention someone with ++ to award points, -- to dock them. Leaderboards, per-channel settings, and configurable snark." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="plusplus-icon.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" type="image/png" href="plusplus-icon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav">
+      <a class="brand" href="index.html">
+        <img class="brand__logo" src="plusplus-icon.png" alt="PlusPlus logo" width="36" height="36" />
+        <span class="brand__name">plusplus</span>
+      </a>
+      <a class="nav__link" href="https://github.com/jordan-simonovski/plusplus" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+
+    <div class="hero__inner">
+      <h1 class="hero__title">Karma for your Slack,<br /><span class="accent">with attitude.</span></h1>
+      <p class="hero__subtitle">
+        Mention a teammate with <code>++</code> to award points and <code>--</code> to dock them.
+        PlusPlus keeps score, runs the leaderboard, and shuts down the karma farmers with a little snark.
+      </p>
+      <div class="hero__cta">
+        <a href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+      </div>
+      <p class="hero__note">Free to add. Installs in seconds. No card, no nonsense.</p>
+    </div>
+
+    <div class="hero__demo" aria-hidden="true">
+      <div class="chat">
+        <div class="chat__line"><span class="chat__user">@dana</span> shipped the migration over the weekend <span class="chat__karma">@dana +++</span></div>
+        <div class="chat__bot"><span class="chat__bot-name">plusplus</span> dana now has <strong>14</strong> karma. (+2)</div>
+        <div class="chat__line"><span class="chat__user">@you</span> <span class="chat__karma">@you ++</span></div>
+        <div class="chat__bot"><span class="chat__bot-name">plusplus</span> Nice try. You cannot farm karma from yourself.</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section" id="how">
+      <h2 class="section__title">How it works</h2>
+      <p class="section__lead">No setup, no syntax to memorize. Just talk like you already do.</p>
+      <div class="grid grid--3">
+        <div class="card">
+          <div class="card__badge card__badge--plus">++</div>
+          <h3 class="card__title">Award karma</h3>
+          <p>Mention someone followed by a run of pluses — <code>@sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
+        </div>
+        <div class="card">
+          <div class="card__badge card__badge--minus">&minus;&minus;</div>
+          <h3 class="card__title">Dock karma</h3>
+          <p>Same idea in reverse — <code>@sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@sam —</code> still counts.</p>
+        </div>
+        <div class="card">
+          <div class="card__badge card__badge--cap">5</div>
+          <h3 class="card__title">Capped &amp; fair</h3>
+          <p>Each hit moves the needle by at most ±5, so nobody mints a fortune with one giant <code>+++++++++</code>. Self-awards are denied.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--alt" id="features">
+      <h2 class="section__title">What you get</h2>
+      <div class="grid grid--2">
+        <div class="feature">
+          <h3 class="feature__title">Live leaderboard</h3>
+          <p>Run <code>/leaderboard</code> for the all-time standings. Scoped per workspace, so your numbers stay yours.</p>
+        </div>
+        <div class="feature">
+          <h3 class="feature__title">Per-channel settings</h3>
+          <p>Decide whether the bot replies in-channel or in a thread with <code>/settings reply_mode thread|channel</code>.</p>
+        </div>
+        <div class="feature">
+          <h3 class="feature__title">Adjustable snark</h3>
+          <p>Ten levels of personality, from dry and quiet to fully unhinged. Tune how loud the bot gets.</p>
+        </div>
+        <div class="feature">
+          <h3 class="feature__title">Group karma</h3>
+          <p>Award a whole user group at once. Spread the love (or the blame) across the team.</p>
+        </div>
+        <div class="feature">
+          <h3 class="feature__title">Multi-workspace</h3>
+          <p>One-click OAuth install. Every workspace is isolated — separate scores, separate settings.</p>
+        </div>
+        <div class="feature">
+          <h3 class="feature__title">Built to last</h3>
+          <p>A small Go service on DynamoDB. On-demand billing means no idle cost and nothing to babysit.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="commands">
+      <h2 class="section__title">Commands</h2>
+      <div class="commands">
+        <div class="command">
+          <code class="command__name">@user ++ / @user --</code>
+          <span class="command__desc">Award or dock karma. Min 2 symbols, capped at ±5 per message.</span>
+        </div>
+        <div class="command">
+          <code class="command__name">/leaderboard</code>
+          <span class="command__desc">Show the all-time karma leaderboard for the workspace.</span>
+        </div>
+        <div class="command">
+          <code class="command__name">/settings reply_mode thread|channel</code>
+          <span class="command__desc">Configure where the bot posts its replies.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--cta">
+      <h2 class="cta__title">Settle the score.</h2>
+      <p class="cta__subtitle">Add PlusPlus to your workspace and let the karma economy begin.</p>
+      <div class="hero__cta">
+        <a href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>PlusPlus — a Slack karma bot.</span>
+    <span class="footer__links">
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/jordan-simonovski/plusplus" target="_blank" rel="noopener">Source on GitHub</a>
+    </span>
+  </footer>
+</body>
+</html>
