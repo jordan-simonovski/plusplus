@@ -1,24 +1,22 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: plusplus
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:
-      - "5432:5432"
-    volumes:
-      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:ro
+      - "8000:8000"
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - postgres
+      - dynamodb
     environment:
       PORT: "8080"
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/plusplus?sslmode=disable
+      AWS_REGION: ap-southeast-2
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
       SLACK_SIGNING_SECRET: dev-signing-secret
       SLACK_BOT_TOKEN: xoxb-local-token
     ports:

@@ -22,7 +22,17 @@ type Config struct {
 	// WorkspaceEncryptor is set when SLACK_CLIENT_ID is configured (OAuth install + encrypted tokens).
 	WorkspaceEncryptor *crypto.AESEncryptor
 
-	DatabaseURL       string
+	// AWSRegion is the DynamoDB region. Credentials come from the AWS SDK default
+	// chain (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars on Railway).
+	AWSRegion string
+	// DynamoDBEndpoint overrides the DynamoDB endpoint (DynamoDB Local for dev).
+	// Empty means use the real AWS endpoint for AWSRegion.
+	DynamoDBEndpoint string
+
+	KarmaTable      string
+	SettingsTable   string
+	WorkspacesTable string
+
 	MaxKarmaPerAction int
 }
 
@@ -35,7 +45,11 @@ func Load() (Config, error) {
 		SlackClientID:      os.Getenv("SLACK_CLIENT_ID"),
 		SlackClientSecret:  os.Getenv("SLACK_CLIENT_SECRET"),
 		PublicBaseURL:      os.Getenv("PUBLIC_BASE_URL"),
-		DatabaseURL:        getenvDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/plusplus?sslmode=disable"),
+		AWSRegion:          getenvDefault("AWS_REGION", "ap-southeast-2"),
+		DynamoDBEndpoint:   os.Getenv("DYNAMODB_ENDPOINT"),
+		KarmaTable:         getenvDefault("DYNAMODB_KARMA_TABLE", "plusplus_karma"),
+		SettingsTable:      getenvDefault("DYNAMODB_SETTINGS_TABLE", "plusplus_channel_settings"),
+		WorkspacesTable:    getenvDefault("DYNAMODB_WORKSPACES_TABLE", "plusplus_workspaces"),
 		MaxKarmaPerAction:  getenvIntDefault("MAX_KARMA_PER_ACTION", 5),
 	}
 

@@ -1,6 +1,12 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrNotFound is returned by repositories when a requested item does not exist.
+var ErrNotFound = errors.New("not found")
 
 type RejectionReason string
 

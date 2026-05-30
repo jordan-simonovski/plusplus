@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"net/http"
@@ -15,8 +14,6 @@ import (
 	appslack "plusplus/internal/slack"
 	"syscall"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
@@ -25,26 +22,22 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
-	db, err := sql.Open("pgx", cfg.DatabaseURL)
+	dynamoClient, err := persistence.NewDynamoClient(context.Background(), cfg)
 	if err != nil {
-		log.Fatalf("open postgres: %v", err)
+		log.Fatalf("init dynamodb client: %v", err)
 	}
-	defer db.Close()
-	if err := db.PingContext(context.Background()); err != nil {
-		log.Fatalf("ping postgres: %v", err)
-	}
-	if err := persistence.RunMigrations(context.Background(), db); err != nil {
-		log.Fatalf("run migrations: %v", err)
+	if err := persistence.EnsureTables(context.Background(), dynamoClient, cfg); err != nil {
+		log.Fatalf("ensure dynamodb tables: %v", err)
 	}
 
-	karmaRepo := persistence.NewPostgresKarmaRepository(db)
-	settingsRepo := persistence.NewPostgresSettingsRepository(db)
+	karmaRepo := persistence.NewDynamoKarmaRepository(dynamoClient, cfg.KarmaTable)
+	settingsRepo := persistence.NewDynamoSettingsRepository(dynamoClient, cfg.SettingsTable)
 	karmaService := domain.NewKarmaService(karmaRepo, domain.RandomSnarkPicker(), cfg.MaxKarmaPerAction)
 	settingsService := appslack.NewChannelSettingsService(settingsRepo)
 
-	var workspaceRepo *persistence.PostgresWorkspaceRepository
+	var workspaceRepo *persistence.DynamoWorkspaceRepository
 	if cfg.WorkspaceEncryptor != nil {
-		workspaceRepo = persistence.NewPostgresWorkspaceRepository(db, cfg.WorkspaceEncryptor)
+		workspaceRepo = persistence.NewDynamoWorkspaceRepository(dynamoClient, cfg.WorkspacesTable, cfg.WorkspaceEncryptor)
 	}
 	slackClient := appslack.NewTeamResolvingClient(workspaceRepo, cfg.SlackBotToken)
 

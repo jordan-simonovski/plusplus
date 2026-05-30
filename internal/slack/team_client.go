@@ -2,12 +2,13 @@ package slack
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+
+	"plusplus/internal/domain"
 )
 
-// BotTokenStore resolves a workspace bot token (decrypted from Postgres).
+// BotTokenStore resolves a workspace bot token (decrypted from the data store).
 type BotTokenStore interface {
 	GetBotToken(ctx context.Context, teamID string) (string, error)
 }
@@ -29,7 +30,7 @@ func (c *TeamResolvingClient) apiClient(ctx context.Context, teamID string) (*AP
 		if err == nil && tok != "" {
 			return NewAPIClient(tok), nil
 		}
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return nil, err
 		}
 	}
