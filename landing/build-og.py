@@ -32,7 +32,7 @@ svg = f"""<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org
   <text x="150" y="106" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="36" fill="#e5e9f0">plusplus</text>
 
   <text x="78" y="288" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="80" letter-spacing="-3" fill="#ffffff">Karma for your Slack,</text>
-  <text x="78" y="380" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="80" letter-spacing="-3" fill="#38bdf8">with attitude.</text>
+  <text x="78" y="380" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="80" letter-spacing="-3" fill="#38bdf8">made simple.</text>
 
   <text x="82" y="446" font-family="Arial, Helvetica, sans-serif" font-size="31" fill="#9aa7bd">Mention a teammate with ++ to award points, -- to dock them.</text>
 
