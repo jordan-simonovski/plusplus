@@ -2,23 +2,87 @@ display_information:
   name: PlusPlus Karma
   description: Slack karma bot for plus/minus awards and leaderboard tracking.
   background_color: "#1f2937"
+  long_description: "PlusPlus is a karma bot for Slack. It lets your team recognize each other in the flow of conversation—no forms, no separate app to open. When someone does something good, you give them karma right in the channel. Over time, PlusPlus keeps score and surfaces a leaderboard so appreciation is visible instead of forgotten.\r
 
+    \r
+
+    How it works\r
+
+    \r
+
+    Give or take karma by adding a run of + or - symbols after a mention:\r
+
+    \r
+
+    @alex ++ gives Alex karma.\r
+
+    @sam +++ gives more (longer runs award more, up to a per-action cap).\r
+
+    @jordan -- removes karma.\r
+
+    PlusPlus reads ordinary channel messages and mentions, recognizes the karma pattern, applies the change, and replies with the running total. You can also @PlusPlus it directly. It understands real-world typing quirks—iOS and macOS love to turn -- into an em dash or en dash, and PlusPlus counts those correctly so karma isn't silently dropped.\r
+
+    \r
+
+    Built-in fairness rules\r
+
+    \r
+
+    You can't award karma to yourself, and you can't dock your own karma. Attempts are politely (and amusingly) rejected.\r
+
+    A minimum symbol run is required so stray punctuation doesn't trigger karma by accident.\r
+
+    Each action is capped, so nobody can hand out 50 points in one message.\r
+
+    Commands\r
+
+    \r
+
+    /leaderboard — show the standings for your workspace.\r
+
+    /settings — open an interactive panel to tune the bot for a channel.\r
+
+    /settings reply_mode thread|channel — choose whether PlusPlus replies in-thread or in the channel.\r
+
+    /settings snark <1–10> — set how much personality the bot's rejection and \"capped\" messages have, from dry and minimal (1) to maximum sass (10).\r
+
+    Privacy and isolation\r
+
+    \r
+
+    PlusPlus is multi-workspace by design. Every workspace's data is isolated by team, and karma totals, leaderboards, and settings never cross between workspaces. Installation uses Slack's standard OAuth flow with CSRF-protected state, and your workspace's bot token is stored encrypted at rest. PlusPlus only requests the scopes it needs to read messages and mentions, post replies, and run its slash commands.\r
+
+    \r
+
+    Why teams use it\r
+
+    \r
+
+    Recognition that lives inside the conversation gets used. PlusPlus turns a quick ++ into a lasting, visible signal of who's helping, shipping, and showing up—lightweight enough that people actually do it, structured enough that it adds up.\r
+
+    \r
+
+    Our promise to transparency\r
+
+    \r
+
+    The codebase remains completely open source in case you'd like to deploy this yourself. See our privacy policy for more details."
 features:
   bot_user:
     display_name: plusplus
     always_online: true
   slash_commands:
     - command: /leaderboard
-      url: https://plusplus-production.up.railway.app/slack/commands
+      url: https://api.pluspluskarma.dev/slack/commands
       description: Show the all-time karma leaderboard.
       should_escape: false
     - command: /settings
-      url: https://plusplus-production.up.railway.app/slack/commands
+      url: https://api.pluspluskarma.dev/slack/commands
       description: Configure channel settings (reply_mode thread|channel).
       should_escape: false
-
 oauth_config:
   redirect_urls:
+    - https://api.pluspluskarma.dev/slack/oauth/callback
     - https://plusplus-production.up.railway.app/slack/oauth/callback
   scopes:
     bot:
@@ -28,17 +92,18 @@ oauth_config:
       - commands
       - groups:history
       - usergroups:read
-
+  pkce_enabled: false
 settings:
   event_subscriptions:
-    request_url: https://plusplus-production.up.railway.app/slack/events
+    request_url: https://api.pluspluskarma.dev/slack/events
     bot_events:
       - app_mention
       - message.channels
       - message.groups
   interactivity:
     is_enabled: true
-    request_url: https://plusplus-production.up.railway.app/slack/interactions
+    request_url: https://api.pluspluskarma.dev/slack/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
+  is_mcp_enabled: false

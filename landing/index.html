@@ -39,12 +39,42 @@
     </div>
 
     <div class="hero__demo" aria-hidden="true">
-      <div class="chat">
-        <div class="chat__line"><span class="chat__user">@jordo</span> <span class="chat__karma">@dana +++</span> shipped an awesome new feature today!</div>
-        <div class="chat__bot"><span class="chat__bot-name">plusplus</span> dana now has <strong>14</strong> karma. (+2)</div>
-        <div class="chat__line"><span class="chat__user">@jordo</span> <span class="chat__karma">@jordo ++</span></div>
-        <div class="chat__bot"><span class="chat__bot-name">plusplus</span> Nice try. You cannot farm karma from yourself.</div>
+      <div class="slack" id="slack-demo">
+        <div class="slack__msg">
+          <div class="slack__avatar slack__avatar--user">
+            <img src="davidmitchell.jpg" alt="" width="36" height="36" />
+          </div>
+          <div class="slack__body">
+            <div class="slack__meta">
+              <span class="slack__name">David Mitchell</span>
+              <span class="slack__time">9:41&#8239;AM</span>
+            </div>
+            <div class="slack__text"><span class="slack__line" id="slack-line"></span><span class="slack__cursor" id="slack-cursor"></span></div>
+          </div>
+        </div>
+
+        <div class="slack__thread" id="slack-thread" hidden>
+          <span class="slack__thread-line"></span>
+          <span class="slack__thread-label">1 reply</span>
+        </div>
+
+        <div class="slack__msg slack__reply" id="slack-reply" hidden>
+          <div class="slack__avatar slack__avatar--bot">
+            <img src="plusplus-icon.png" alt="" width="36" height="36" />
+          </div>
+          <div class="slack__body">
+            <div class="slack__meta">
+              <span class="slack__name">plusplus</span>
+              <span class="slack__badge">APP</span>
+              <span class="slack__time">Just now</span>
+            </div>
+            <div class="slack__text" id="slack-bot">
+              <span class="slack__typing"><span></span><span></span><span></span></span>
+            </div>
+          </div>
+        </div>
       </div>
+      <div class="slack__dots" id="slack-dots" aria-hidden="true"></div>
     </div>
   </header>
 
@@ -128,6 +158,10 @@
     </section>
   </main>
 
+  <a class="floating-cta" href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read&user_scope=" aria-label="Add to Slack">
+    <img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" />
+  </a>
+
   <footer class="footer">
     <span>PlusPlus — a Slack karma bot.</span>
     <span class="footer__links">
@@ -140,6 +174,146 @@
 
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+
+    (function () {
+      var floating = document.querySelector('.floating-cta');
+      var heroCta = document.querySelector('.hero__cta');
+      if (!floating || !heroCta) return;
+
+      var observer = new IntersectionObserver(function (entries) {
+        floating.classList.toggle('floating-cta--visible', !entries[0].isIntersecting);
+      });
+      observer.observe(heroCta);
+    })();
+
+    (function () {
+      var demo = document.getElementById('slack-demo');
+      if (!demo) return;
+
+      var line = document.getElementById('slack-line');
+      var cursor = document.getElementById('slack-cursor');
+      var thread = document.getElementById('slack-thread');
+      var reply = document.getElementById('slack-reply');
+      var bot = document.getElementById('slack-bot');
+      var dotsWrap = document.getElementById('slack-dots');
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var typingDots = '<span class="slack__typing"><span></span><span></span><span></span></span>';
+
+      var scenes = [
+        {
+          segments: [
+            { text: '@bobmortimer', cls: 'slack__mention' },
+            { text: ' +++++', cls: 'slack__plus' }
+          ],
+          reply: '<span class="slack__mention">@bobmortimer</span> gained <strong>4</strong> karma. Total: <strong>58</strong>.'
+        },
+        {
+          segments: [
+            { text: '@karen', cls: 'slack__mention' },
+            { text: ' ---', cls: 'slack__minus' }
+          ],
+          reply: '<span class="slack__mention">@karen</span> lost <strong>3</strong> karma. Total: <strong>11</strong>.'
+        },
+        {
+          segments: [
+            { text: '/leaderboard', cls: 'slack__cmd' }
+          ],
+          reply: '<span class="slack__board">'
+            + '<span class="slack__board-title">Karma leaderboard</span>'
+            + '<span class="slack__board-row"><span class="slack__rank">1.</span> <span class="slack__mention">@bobmortimer</span> <b>58</b></span>'
+            + '<span class="slack__board-row"><span class="slack__rank">2.</span> <span class="slack__mention">@dana</span> <b>41</b></span>'
+            + '<span class="slack__board-row"><span class="slack__rank">3.</span> <span class="slack__mention">@sam</span> <b>33</b></span>'
+            + '</span>'
+        }
+      ];
+
+      var timers = [];
+      var idx = 0;
+      function after(ms, fn) { timers.push(setTimeout(fn, ms)); }
+      function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+      var dots = scenes.map(function (_, i) {
+        var d = document.createElement('button');
+        d.type = 'button';
+        d.className = 'slack__dot';
+        d.setAttribute('aria-label', 'Example ' + (i + 1));
+        d.addEventListener('click', function () { jump(i); });
+        dotsWrap.appendChild(d);
+        return d;
+      });
+
+      function reset() {
+        clearTimers();
+        line.textContent = '';
+        cursor.style.display = '';
+        thread.hidden = true;
+        reply.hidden = true;
+        bot.innerHTML = typingDots;
+        dots.forEach(function (d, j) { d.classList.toggle('slack__dot--active', j === idx); });
+      }
+
+      function fill(scene) {
+        scene.segments.forEach(function (seg) {
+          var span = document.createElement('span');
+          if (seg.cls) span.className = seg.cls;
+          span.textContent = seg.text;
+          line.appendChild(span);
+        });
+      }
+
+      function typeSegments(scene, done) {
+        var si = 0;
+        (function typeSeg() {
+          if (si >= scene.segments.length) { done(); return; }
+          var seg = scene.segments[si++];
+          var span = document.createElement('span');
+          if (seg.cls) span.className = seg.cls;
+          line.appendChild(span);
+          var ci = 0;
+          (function typeChar() {
+            if (ci < seg.text.length) {
+              span.textContent += seg.text[ci++];
+              after(110, typeChar);
+              return;
+            }
+            typeSeg();
+          })();
+        })();
+      }
+
+      function jump(i) {
+        idx = i;
+        reset();
+        var scene = scenes[idx];
+        if (prefersReduced) {
+          fill(scene);
+          cursor.style.display = 'none';
+          thread.hidden = false;
+          reply.hidden = false;
+          bot.innerHTML = scene.reply;
+          return;
+        }
+        typeSegments(scene, function () {
+          after(650, function () {
+            cursor.style.display = 'none';
+            thread.hidden = false;
+            reply.hidden = false;
+          });
+          after(2100, function () { bot.innerHTML = scene.reply; });
+          after(6500, function () { jump((idx + 1) % scenes.length); });
+        });
+      }
+
+      var started = false;
+      var io = new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting && !started) {
+          started = true;
+          jump(0);
+        }
+      }, { threshold: 0.4 });
+      io.observe(demo);
+    })();
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
 </body>

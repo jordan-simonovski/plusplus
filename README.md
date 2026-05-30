@@ -145,6 +145,19 @@ Set these in Railway service variables:
 - `SLACK_SIGNING_SECRET=<from slack app settings>`
 - `SLACK_BOT_TOKEN=<xoxb token>`
 
+For multi-workspace OAuth install (the `/slack/install` flow), also set:
+
+- `SLACK_CLIENT_ID=<from slack app settings>`
+- `SLACK_CLIENT_SECRET=<from slack app settings>`
+- `TOKEN_ENCRYPTION_KEY=<base64 32-byte key>`
+- `PUBLIC_BASE_URL=https://api.pluspluskarma.dev` — pins generated OAuth `redirect_uri`/install URLs to your domain. If unset, the app infers the base URL from the request `Host`. This value must exactly match a registered redirect URL in the Slack app manifest.
+
+#### Custom domain (api.pluspluskarma.dev)
+1. Railway → service → Settings → Networking → Custom Domain → add `api.pluspluskarma.dev`; Railway returns a CNAME target.
+2. At your DNS provider for `pluspluskarma.dev`, add `CNAME api → <target>.up.railway.app`. Railway auto-provisions TLS once DNS resolves.
+3. Set `PUBLIC_BASE_URL=https://api.pluspluskarma.dev` and redeploy.
+4. Apply the updated `slack-app-manifest.yaml` so Slack's request/redirect URLs use the custom domain.
+
 ### Migrating existing data from Supabase
 The one-time `cmd/migrate` tool copies the three tables (`karma_totals`, `channel_settings`, `slack_workspaces`) into DynamoDB. Bot-token ciphertext is copied as-is, so no encryption key is needed. It is idempotent (uses `PutItem`), so it is safe to re-run.
 
@@ -168,14 +181,15 @@ go run ./cmd/migrate
 Once cutover is verified, `cmd/migrate` and the `pgx` dependency can be deleted.
 
 ### 4) Configure Slack callback URLs
-After Railway deploys and gives you a public URL:
+After Railway deploys and you have a public URL (custom domain `https://api.pluspluskarma.dev` or the default `https://<railway-domain>`):
 
-- Event Subscriptions request URL: `https://<railway-domain>/slack/events`
-- `/leaderboard` command URL: `https://<railway-domain>/slack/commands`
-- `/settings` command URL: `https://<railway-domain>/slack/commands`
+- Event Subscriptions request URL: `https://api.pluspluskarma.dev/slack/events`
+- `/leaderboard` command URL: `https://api.pluspluskarma.dev/slack/commands`
+- `/settings` command URL: `https://api.pluspluskarma.dev/slack/commands`
+- OAuth redirect URL: `https://api.pluspluskarma.dev/slack/oauth/callback`
 
 ### 5) Verify deployment
-1. Hit `https://<railway-domain>/healthz` and confirm `status: ok`.
+1. Hit `https://api.pluspluskarma.dev/healthz` and confirm `status: ok`.
 2. In Slack, run `/leaderboard` and verify a response.
 3. In a channel with the bot, send ambient events like `<@user> +++` and verify persisted karma.
 
