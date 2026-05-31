@@ -28,7 +28,9 @@ try {
   fail(`cannot read CHANGELOG.md: ${e.message}`);
 }
 
-const body = marked.parse(changelogMd);
+// Drop the top-level "# plusplus" heading; the page supplies its own <h1>.
+const trimmedMd = changelogMd.replace(/^#\s.*(\r?\n)+/, "");
+const body = marked.parse(trimmedMd);
 
 const page = `<!DOCTYPE html>
 <html lang="en">
@@ -83,10 +85,8 @@ const badgeRe = /<a class="nav__link nav__version"[^>]*>v[^<]*<\/a>/;
 if (!badgeRe.test(index)) {
   fail("index.html missing the nav__version badge marker");
 }
-index = index.replace(
-  badgeRe,
-  `<a class="nav__link nav__version" data-version href="changelog.html">v${version}</a>`
-);
+const badge = `<a class="nav__link nav__version" data-version href="changelog.html">v${version}</a>`;
+index = index.replace(badgeRe, () => badge);
 writeFileSync(indexPath, index);
 
 console.log(`build-changelog: wrote changelog.html and stamped index nav with v${version}`);
