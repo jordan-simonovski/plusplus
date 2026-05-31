@@ -27,13 +27,15 @@ type CommandsProcessor struct {
 	signingSecret   string
 	leaderboard     LeaderboardService
 	settingsService SettingsCommandService
+	version         string
 }
 
-func NewCommandsProcessor(signingSecret string, leaderboard LeaderboardService, settingsService SettingsCommandService) *CommandsProcessor {
+func NewCommandsProcessor(signingSecret string, leaderboard LeaderboardService, settingsService SettingsCommandService, version string) *CommandsProcessor {
 	return &CommandsProcessor{
 		signingSecret:   signingSecret,
 		leaderboard:     leaderboard,
 		settingsService: settingsService,
+		version:         version,
 	}
 }
 
@@ -144,7 +146,7 @@ func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r 
 	writeJSON(w, http.StatusOK, MessageResponse{
 		ResponseType: "ephemeral",
 		Text:         "Configure this channel's karma replies.",
-		Blocks:       settingsBlocks(current),
+		Blocks:       settingsBlocks(current, p.version),
 	})
 }
 

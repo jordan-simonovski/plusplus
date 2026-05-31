@@ -18,7 +18,7 @@ import (
 )
 
 func TestCommandsProcessorLeaderboard(t *testing.T) {
-	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{})
+	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fleaderboard&text=")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)
@@ -40,7 +40,7 @@ func TestCommandsProcessorLeaderboard(t *testing.T) {
 }
 
 func TestCommandsProcessorSettingsUsage(t *testing.T) {
-	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{})
+	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fsettings&text=bad")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)

@@ -12,6 +12,7 @@ import (
 	transport "plusplus/internal/http"
 	"plusplus/internal/persistence"
 	appslack "plusplus/internal/slack"
+	"plusplus/internal/version"
 	"syscall"
 	"time"
 )
@@ -57,7 +58,7 @@ func main() {
 	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
 		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient)),
-		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService)),
+		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, version.Version)),
 		interactions,
 		oauthInstall,
 		oauthCallback,
