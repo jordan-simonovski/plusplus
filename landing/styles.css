@@ -506,3 +506,36 @@ code {
   .command { flex-direction: column; gap: 6px; }
   .footer { flex-direction: column; gap: 10px; text-align: center; }
 }
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.nav__version {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.changelog {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.changelog h2 {
+  margin-top: 2.2rem;
+  font-size: 1.4rem;
+}
+.changelog h3 {
+  margin-top: 1.4rem;
+  color: var(--muted);
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.changelog ul { padding-left: 1.2rem; }
+.changelog li { margin: 0.4rem 0; }
+.changelog a { color: var(--text); }
