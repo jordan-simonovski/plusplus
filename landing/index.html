@@ -226,6 +226,17 @@
         },
         {
           segments: [
+            { text: '@engineering', cls: 'slack__mention' },
+            { text: ' ++++', cls: 'slack__plus' }
+          ],
+          reply: '<span class="slack__group">'
+            + '<span class="slack__group-line"><span class="slack__mention">@dana</span> gained <strong>3</strong> karma. Total: <strong>44</strong>.</span>'
+            + '<span class="slack__group-line"><span class="slack__mention">@sam</span> gained <strong>3</strong> karma. Total: <strong>36</strong>.</span>'
+            + '<span class="slack__group-line"><span class="slack__mention">@priya</span> gained <strong>3</strong> karma. Total: <strong>22</strong>.</span>'
+            + '</span>'
+        },
+        {
+          segments: [
             { text: '/leaderboard', cls: 'slack__cmd' }
           ],
           reply: '<span class="slack__board">'
@@ -271,6 +282,36 @@
         });
       }
 
+      // Reserve the card's height for the tallest scene so revealing the
+      // thread/reply (and swapping in the leaderboard) never reflows the page.
+      function reserveHeight() {
+        var saved = {
+          line: line.innerHTML,
+          bot: bot.innerHTML,
+          cursor: cursor.style.display,
+          thread: thread.hidden,
+          reply: reply.hidden
+        };
+        demo.style.minHeight = '';
+        cursor.style.display = 'none';
+        thread.hidden = false;
+        reply.hidden = false;
+        var max = 0;
+        scenes.forEach(function (scene) {
+          line.innerHTML = '';
+          fill(scene);
+          bot.innerHTML = scene.reply;
+          var h = demo.getBoundingClientRect().height;
+          if (h > max) max = h;
+        });
+        line.innerHTML = saved.line;
+        bot.innerHTML = saved.bot;
+        cursor.style.display = saved.cursor;
+        thread.hidden = saved.thread;
+        reply.hidden = saved.reply;
+        demo.style.minHeight = Math.ceil(max) + 'px';
+      }
+
       function typeSegments(scene, done) {
         var si = 0;
         (function typeSeg() {
@@ -313,6 +354,13 @@
           after(6500, function () { jump((idx + 1) % scenes.length); });
         });
       }
+
+      reserveHeight();
+      var resizeTimer;
+      window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(reserveHeight, 150);
+      });
 
       var started = false;
       var io = new IntersectionObserver(function (entries) {

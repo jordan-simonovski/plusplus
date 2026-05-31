@@ -225,6 +225,15 @@ code {
 .slack__board-row b { margin-left: auto; color: #fff; }
 .slack__rank { color: var(--slack-muted); width: 1.2em; }
 
+.slack__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-style: normal;
+}
+.slack__group-line { display: block; }
+.slack__group-line strong { color: #fff; font-weight: 700; }
+
 .slack__cursor {
   display: inline-block;
   width: 2px;
