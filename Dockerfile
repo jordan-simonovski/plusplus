@@ -7,8 +7,12 @@ RUN go mod download
 
 COPY cmd ./cmd
 COPY internal ./internal
+COPY package.json ./
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/plusplus ./cmd/server
+RUN VERSION="$(sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p' package.json | head -n1)" \
+    && [ -n "$VERSION" ] \
+    && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+       go build -ldflags "-X plusplus/internal/version.Version=${VERSION}" -o /bin/plusplus ./cmd/server
 
 FROM gcr.io/distroless/static-debian12:nonroot
 

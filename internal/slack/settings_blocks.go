@@ -6,7 +6,7 @@ import (
 	"plusplus/internal/domain"
 )
 
-func settingsBlocks(currentLevel int) []map[string]interface{} {
+func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{} {
 	if currentLevel < domain.MinSnarkLevel || currentLevel > domain.MaxSnarkLevel {
 		currentLevel = domain.DefaultSnarkLevel
 	}
@@ -59,6 +59,15 @@ func settingsBlocks(currentLevel int) []map[string]interface{} {
 		{
 			"type":     "actions",
 			"elements": []interface{}{selectEl},
+		},
+		{
+			"type": "context",
+			"elements": []interface{}{
+				map[string]interface{}{
+					"type": "mrkdwn",
+					"text": fmt.Sprintf("PlusPlus v%s", appVersion),
+				},
+			},
 		},
 	}
 }
