@@ -2,7 +2,7 @@ SHELL := /bin/sh
 
 APP_ENTRY := ./cmd/server
 
-.PHONY: fmt lint test test-integration run build up down logs
+.PHONY: fmt lint test test-integration run build up down logs release
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
@@ -30,3 +30,6 @@ down:
 
 logs:
 	docker compose logs -f app
+
+release:
+	npm run release
