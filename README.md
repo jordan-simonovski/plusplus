@@ -85,6 +85,14 @@ For local callbacks, use a tunnel (for example `ngrok`):
 ngrok http 8080
 ```
 
+## Self-hosting
+
+Want to run your own instance? Published multi-arch container images
+(`ghcr.io/jordan-simonovski/plusplus`) are built on every push to `main`. See
+[docs/self-hosting.md](docs/self-hosting.md) for the full operator guide:
+required environment variables, the image name and tags, and DynamoDB table
+setup (let the app create them, or pre-create with least-privilege IAM).
+
 ## DynamoDB Deployment Notes
 - Storage is DynamoDB. Three tables (karma, channel settings, workspaces) use **on-demand (pay-per-request)** billing, so there is no idle cost — you pay per read/write.
 - In production the tables are provisioned by Terraform (see [Infrastructure](#infrastructure-terraform)). The app is **describe-first**: it verifies tables exist on boot and only creates them when missing (local dev / DynamoDB Local). So the production runtime credentials need `dynamodb:DescribeTable` but **not** `CreateTable`.
