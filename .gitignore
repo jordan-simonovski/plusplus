@@ -1,3 +1,9 @@
 data.sql
 schema.sql
 node_modules
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform/build/

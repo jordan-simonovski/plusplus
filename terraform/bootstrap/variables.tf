@@ -7,6 +7,7 @@ variable "aws_region" {
 variable "state_bucket_name" {
   description = "Globally-unique S3 bucket name for Terraform remote state."
   type        = string
+  default     = "plusplus-karma-bucket-prod"
 }
 
 variable "github_repository" {
@@ -32,7 +33,7 @@ variable "table_names" {
 variable "create_github_oidc_provider" {
   description = "Create the account-level GitHub OIDC provider. Set false if one already exists in the account (it is a singleton per URL)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "create_runtime_access_key" {
