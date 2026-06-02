@@ -13,6 +13,11 @@ output "workspaces_table_arn" {
   value       = aws_dynamodb_table.workspaces.arn
 }
 
+output "metrics_dashboard_url" {
+  description = "Console URL for the plusplus CloudWatch dashboard."
+  value       = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${aws_cloudwatch_dashboard.metrics.dashboard_name}"
+}
+
 output "table_names" {
   description = "Map of logical name to DynamoDB table name."
   value = {

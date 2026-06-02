@@ -27,3 +27,9 @@ variable "point_in_time_recovery" {
   type        = bool
   default     = true
 }
+
+variable "metrics_schedule" {
+  description = "CloudWatch Events schedule for the metrics Lambda."
+  type        = string
+  default     = "rate(1 hour)"
+}

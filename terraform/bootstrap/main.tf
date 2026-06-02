@@ -11,6 +11,14 @@ locals {
   ]
 
   karma_table_arn = "arn:${local.partition}:dynamodb:${var.aws_region}:${local.account_id}:table/${var.table_names.karma}"
+
+  # ARNs of the metrics stack defined in ../metrics.tf. Names must match that
+  # file; the CI role manages these resources during apply.
+  metrics_lambda_arn      = "arn:${local.partition}:lambda:${var.aws_region}:${local.account_id}:function:plusplus-metrics"
+  metrics_lambda_role_arn = "arn:${local.partition}:iam::${local.account_id}:role/plusplus-metrics-lambda"
+  metrics_event_rule_arn  = "arn:${local.partition}:events:${var.aws_region}:${local.account_id}:rule/plusplus-metrics"
+  metrics_log_group_arn   = "arn:${local.partition}:logs:${var.aws_region}:${local.account_id}:log-group:/aws/lambda/plusplus-metrics"
+  metrics_dashboard_arn   = "arn:${local.partition}:cloudwatch::${local.account_id}:dashboard/plusplus"
 }
 
 # ---------------------------------------------------------------------------
@@ -130,6 +138,115 @@ data "aws_iam_policy_document" "ci" {
       "dynamodb:UntagResource",
     ]
     resources = concat(local.table_arns, ["${local.karma_table_arn}/index/*"])
+  }
+
+  # --- metrics stack (../metrics.tf) ---------------------------------------
+
+  statement {
+    sid    = "ManageMetricsLambdaRole"
+    effect = "Allow"
+    actions = [
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:GetRole",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:PutRolePolicy",
+      "iam:DeleteRolePolicy",
+      "iam:GetRolePolicy",
+    ]
+    resources = [local.metrics_lambda_role_arn]
+  }
+
+  # Required to attach the execution role to the Lambda at create time.
+  statement {
+    sid       = "PassMetricsLambdaRole"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = [local.metrics_lambda_role_arn]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid    = "ManageMetricsLambda"
+    effect = "Allow"
+    actions = [
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionCodeSigningConfig",
+      "lambda:ListVersionsByFunction",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+      "lambda:AddPermission",
+      "lambda:RemovePermission",
+      "lambda:GetPolicy",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:ListTags",
+    ]
+    resources = [local.metrics_lambda_arn]
+  }
+
+  statement {
+    sid    = "ManageMetricsSchedule"
+    effect = "Allow"
+    actions = [
+      "events:PutRule",
+      "events:DeleteRule",
+      "events:DescribeRule",
+      "events:PutTargets",
+      "events:RemoveTargets",
+      "events:ListTargetsByRule",
+      "events:ListTagsForResource",
+      "events:TagResource",
+      "events:UntagResource",
+    ]
+    resources = [local.metrics_event_rule_arn]
+  }
+
+  statement {
+    sid    = "ManageMetricsLogGroup"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:DeleteLogGroup",
+      "logs:DescribeLogGroups",
+      "logs:PutRetentionPolicy",
+      "logs:DeleteRetentionPolicy",
+      "logs:ListTagsForResource",
+      "logs:TagResource",
+      "logs:UntagResource",
+    ]
+    resources = ["${local.metrics_log_group_arn}", "${local.metrics_log_group_arn}:*"]
+  }
+
+  # PutDashboard/GetDashboard/DeleteDashboards support resource ARNs;
+  # ListDashboards (called on refresh) requires "*".
+  statement {
+    sid    = "ManageMetricsDashboard"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutDashboard",
+      "cloudwatch:GetDashboard",
+      "cloudwatch:DeleteDashboards",
+    ]
+    resources = [local.metrics_dashboard_arn]
+  }
+
+  statement {
+    sid       = "ListMetricsDashboards"
+    effect    = "Allow"
+    actions   = ["cloudwatch:ListDashboards"]
+    resources = ["*"]
   }
 }
 
