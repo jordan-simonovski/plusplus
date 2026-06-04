@@ -15,6 +15,7 @@ type KarmaService struct {
 	pickSnark         SnarkPicker
 	maxKarmaPerAction int
 	names             NameResolver
+	war               *KarmaWar
 }
 
 func NewKarmaService(repository KarmaRepository, pickSnark SnarkPicker, maxKarmaPerAction int, names NameResolver) *KarmaService {
@@ -28,6 +29,13 @@ func NewKarmaService(repository KarmaRepository, pickSnark SnarkPicker, maxKarma
 		maxKarmaPerAction: maxKarmaPerAction,
 		names:             names,
 	}
+}
+
+// WithKarmaWar attaches the quick-succession snark detector. Optional: a service
+// without it behaves exactly as before.
+func (s *KarmaService) WithKarmaWar(war *KarmaWar) *KarmaService {
+	s.war = war
+	return s
 }
 
 // resolveName returns the user's display name, degrading to fallback (a mention)
@@ -64,10 +72,40 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 	}
 
 	targetName := s.resolveName(ctx, action.TeamID, action.TargetUserID, action.TargetHandle)
+	message := FormatKarmaAppliedMessage(targetName, outcome.Delta, record, outcome.Capped, s.maxKarmaPerAction, action.SnarkLevel)
+
+	// Group fan-out records one group-level interaction elsewhere; recording each
+	// member here would falsely trip burst detection.
+	if !action.GroupBroadcast {
+		sign := 1
+		if outcome.Delta < 0 {
+			sign = -1
+		}
+		// War snark is best-effort flavor: a store error must not fail the karma reply.
+		if line, _ := s.war.Observe(ctx, action.TeamID, action.SnarkLevel, Interaction{
+			Actor:  action.ActorUserID,
+			Target: action.TargetUserID,
+			Sign:   sign,
+		}); line != "" {
+			message += "\n" + line
+		}
+	}
+
 	return KarmaResult{
 		ShouldPersist: true,
-		Message:       FormatKarmaAppliedMessage(targetName, outcome.Delta, record, outcome.Capped, s.maxKarmaPerAction, action.SnarkLevel),
+		Message:       message,
 	}, nil
+}
+
+// ObserveGroupAward records a user-group karma action and returns a snark line
+// (already italicized, "" when nothing fires) for a karma train on that group.
+func (s *KarmaService) ObserveGroupAward(ctx context.Context, teamID, actorID, groupID string, sign, snarkLevel int) (string, error) {
+	return s.war.Observe(ctx, teamID, snarkLevel, Interaction{
+		Actor:   actorID,
+		Target:  groupID,
+		IsGroup: true,
+		Sign:    sign,
+	})
 }
 
 func (s *KarmaService) HandleLeaderboard(ctx context.Context, request LeaderboardRequest) (KarmaResult, error) {

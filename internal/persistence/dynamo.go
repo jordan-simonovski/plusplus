@@ -31,6 +31,7 @@ const (
 	attrUpdatedAt    = "updated_at"
 	attrBotToken     = "bot_token_ciphertext"
 	attrInstalledAt  = "installed_at"
+	attrRecentJSON   = "recent_json"
 
 	leaderboardIndex = "leaderboard"
 )

@@ -152,6 +152,132 @@ func RandomSnarkPicker() SnarkPicker {
 	}
 }
 
+// War-snark pools are ordered mild → spicy; tierSlice maps the 1–10 level onto
+// a disjoint range, so a quiet channel gets dry one-liners and a loud one gets
+// the unhinged tail.
+var cartelSnarkFlat = []string{
+	"Mutual karma noted.",
+	"Cozy.",
+	"You two scratch each other's backs fast.",
+	"Reciprocal praise detected.",
+	"A tidy little karma cartel forming here.",
+	"Back-scratching at scale. Adorable.",
+	"The mutual admiration society is now in session.",
+	"Karma cartel detected. Antitrust has been notified.",
+	"Round and round the praise goes. Suspiciously efficient.",
+	"Insider trading, but for compliments.",
+}
+
+var feudSnarkFlat = []string{
+	"Tense.",
+	"You two again.",
+	"The minus signs are flying.",
+	"This is becoming a feud.",
+	"Settle down, you two.",
+	"Take it outside, lads.",
+	"This grudge is now load-bearing.",
+	"Nobody wins a karma war. You're both losing.",
+	"I'm not a couples counsellor, but I'm starting to bill like one.",
+	"Escalation detected. Have you considered simply talking.",
+}
+
+var retaliationSnarkFlat = []string{
+	"Retaliation noted.",
+	"An eye for an eye.",
+	"Swift response.",
+	"Tit, meet tat.",
+	"This is how feuds start.",
+	"Revenge karma logged.",
+	"The reply was faster than the thought behind it.",
+	"Measured response: absolutely not.",
+	"And the counterstrike lands. Predictable.",
+	"You didn't even pretend to think about it.",
+}
+
+var trainSnarkFlat = []string{
+	"Karma train rolling.",
+	"All aboard, then.",
+	"That group is getting popular fast.",
+	"Choo choo. Karma train has no brakes.",
+	"This group is being showered. Suspiciously coordinated.",
+	"The whole group, again? Bold.",
+	"Group karma train detected. Next stop: leaderboard fraud.",
+	"Everyone's hyping the same group. Almost like a plan.",
+	"Karma train at full speed. Conductor, please.",
+	"This isn't generosity, it's a syndicate.",
+}
+
+var farmSnarkFlat = []string{
+	"Repeated award noted.",
+	"Again? Alright.",
+	"You really like this person.",
+	"Karma farming detected.",
+	"Same target, again. The grind is real.",
+	"You're not awarding, you're subscribing.",
+	"Karma farm in progress. Crops not yet rotated.",
+	"This is less appreciation, more recurring billing.",
+	"You've hit them so often I'm rounding up.",
+	"Stop watering the same plant. It's flooded.",
+}
+
+var pileOnSnarkFlat = []string{
+	"Repeated removal noted.",
+	"Easy.",
+	"You really don't like this person.",
+	"Pile-on detected.",
+	"Same target, again. The vendetta continues.",
+	"This is a dogpile with extra steps.",
+	"You're not docking karma, you're holding a grudge with cron.",
+	"Repeated minus detected. Have they wronged your family.",
+	"This is bullying with a leaderboard.",
+	"Leave them something to lose, at least.",
+}
+
+var spraySnarkFlat = []string{
+	"Spreading karma around.",
+	"Busy.",
+	"Awarding everyone in sight.",
+	"Karma spray detected.",
+	"You're handing it out like flyers.",
+	"This is less judgement, more confetti.",
+	"Karma firehose engaged. Aim is optional.",
+	"You've blessed half the channel. Quota incoming.",
+	"Indiscriminate generosity. The economy is watching.",
+	"Slow down, Oprah. Everyone gets karma.",
+}
+
+func warSnarkFlat(vibe warVibe) []string {
+	switch vibe {
+	case vibeCartel:
+		return cartelSnarkFlat
+	case vibeFeud:
+		return feudSnarkFlat
+	case vibeRetaliation:
+		return retaliationSnarkFlat
+	case vibeTrain:
+		return trainSnarkFlat
+	case vibeFarm:
+		return farmSnarkFlat
+	case vibePileOn:
+		return pileOnSnarkFlat
+	case vibeSpray:
+		return spraySnarkFlat
+	default:
+		return nil
+	}
+}
+
+// defaultWarSnark seeds a fresh source per call (matching RandomCappedAwardSnark)
+// to avoid sharing a *rand.Rand across concurrent request goroutines.
+func defaultWarSnark(vibe warVibe, level int) string {
+	pool := tierSlice(warSnarkFlat(vibe), NormalizeSnarkLevel(level))
+	if len(pool) == 0 {
+		return ""
+	}
+	seed := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return pool[seed.Intn(len(pool))]
+}
+
 func RandomCappedAwardSnark(maxKarmaPerAction int, snarkLevel int) string {
 	level := NormalizeSnarkLevel(snarkLevel)
 	idx := level - 1
