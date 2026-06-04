@@ -53,39 +53,7 @@
 
     <div class="hero__demo" aria-hidden="true">
       <div class="slack" id="slack-demo">
-        <div class="slack__msg">
-          <div class="slack__avatar slack__avatar--user">
-            <img src="davidmitchell.jpg" alt="" width="36" height="36" />
-          </div>
-          <div class="slack__body">
-            <div class="slack__meta">
-              <span class="slack__name">David Mitchell</span>
-              <span class="slack__time">9:41&#8239;AM</span>
-            </div>
-            <div class="slack__text"><span class="slack__line" id="slack-line"></span><span class="slack__cursor" id="slack-cursor"></span></div>
-          </div>
-        </div>
-
-        <div class="slack__thread" id="slack-thread" hidden>
-          <span class="slack__thread-line"></span>
-          <span class="slack__thread-label">1 reply</span>
-        </div>
-
-        <div class="slack__msg slack__reply" id="slack-reply" hidden>
-          <div class="slack__avatar slack__avatar--bot">
-            <img src="plusplus-icon.png" alt="" width="36" height="36" />
-          </div>
-          <div class="slack__body">
-            <div class="slack__meta">
-              <span class="slack__name">plusplus</span>
-              <span class="slack__badge">APP</span>
-              <span class="slack__time">Just now</span>
-            </div>
-            <div class="slack__text" id="slack-bot">
-              <span class="slack__typing"><span></span><span></span><span></span></span>
-            </div>
-          </div>
-        </div>
+        <div class="slack__feed" id="slack-feed"></div>
       </div>
       <div class="slack__dots" id="slack-dots" aria-hidden="true"></div>
     </div>
@@ -201,54 +169,93 @@
 
     (function () {
       var demo = document.getElementById('slack-demo');
-      if (!demo) return;
-
-      var line = document.getElementById('slack-line');
-      var cursor = document.getElementById('slack-cursor');
-      var thread = document.getElementById('slack-thread');
-      var reply = document.getElementById('slack-reply');
-      var bot = document.getElementById('slack-bot');
+      var feed = document.getElementById('slack-feed');
       var dotsWrap = document.getElementById('slack-dots');
+      if (!demo || !feed) return;
 
       var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       var typingDots = '<span class="slack__typing"><span></span><span></span><span></span></span>';
 
+      var mark = { name: 'Mark Corrigan', img: 'assets/mark.webp' };
+      var jez = { name: 'Jeremy Usborne', img: 'assets/jez.webp' };
+
+      function plus(n) { return new Array(n + 1).join('+'); }
+      function minus(n) { return new Array(n + 1).join('-'); }
+
+      // Each scene is a sequence of messages. A message is typed out by its
+      // author, then plusplus replies in-channel underneath it.
       var scenes = [
         {
-          segments: [
-            { text: '@bobmortimer', cls: 'slack__mention' },
-            { text: ' +++++', cls: 'slack__plus' }
-          ],
-          reply: '<span class="slack__mention">@bobmortimer</span> gained <strong>4</strong> karma. Total: <strong>58</strong>.'
+          messages: [
+            {
+              author: mark, time: '9:41',
+              segments: [
+                { text: '@sophiechapman', cls: 'slack__mention' },
+                { text: ' ' + plus(5), cls: 'slack__plus' }
+              ],
+              reply: '<span class="slack__mention">@sophiechapman</span> gained <strong>4</strong> karma. Total: <strong>61</strong>.'
+            }
+          ]
         },
         {
-          segments: [
-            { text: '@karen', cls: 'slack__mention' },
-            { text: ' ---', cls: 'slack__minus' }
-          ],
-          reply: '<span class="slack__mention">@karen</span> lost <strong>3</strong> karma. Total: <strong>11</strong>.'
+          messages: [
+            {
+              author: mark, time: '9:42',
+              segments: [
+                { text: '@jez', cls: 'slack__mention' },
+                { text: ' ' + minus(2), cls: 'slack__minus' }
+              ],
+              reply: '<span class="slack__mention">@jez</span> lost <strong>2</strong> karma. Total: <strong>7</strong>.'
+            },
+            {
+              author: jez, time: '9:42',
+              segments: [
+                { text: '@mark', cls: 'slack__mention' },
+                { text: ' ' + minus(3), cls: 'slack__minus' }
+              ],
+              reply: '<span class="slack__mention">@mark</span> lost <strong>3</strong> karma. Total: <strong>14</strong>.'
+            },
+            {
+              author: mark, time: '9:43',
+              segments: [
+                { text: '@jez', cls: 'slack__mention' },
+                { text: ' ' + minus(5), cls: 'slack__minus' }
+              ],
+              reply: '<span class="slack__mention">@jez</span> lost <strong>5</strong> karma. Total: <strong>2</strong>. <em>Settle down, you two.</em>'
+            }
+          ]
         },
         {
-          segments: [
-            { text: '@engineering', cls: 'slack__mention' },
-            { text: ' ++++', cls: 'slack__plus' }
-          ],
-          reply: '<span class="slack__group">'
-            + '<span class="slack__group-line"><span class="slack__mention">@dana</span> gained <strong>3</strong> karma. Total: <strong>44</strong>.</span>'
-            + '<span class="slack__group-line"><span class="slack__mention">@sam</span> gained <strong>3</strong> karma. Total: <strong>36</strong>.</span>'
-            + '<span class="slack__group-line"><span class="slack__mention">@priya</span> gained <strong>3</strong> karma. Total: <strong>22</strong>.</span>'
-            + '</span>'
+          messages: [
+            {
+              author: mark, time: '11:08',
+              segments: [
+                { text: '@jlb-credit', cls: 'slack__mention' },
+                { text: ' ' + plus(4), cls: 'slack__plus' }
+              ],
+              reply: '<span class="slack__group">'
+                + '<span class="slack__group-line"><span class="slack__mention">@johnson</span> gained <strong>3</strong> karma. Total: <strong>49</strong>.</span>'
+                + '<span class="slack__group-line"><span class="slack__mention">@dobby</span> gained <strong>3</strong> karma. Total: <strong>37</strong>.</span>'
+                + '<span class="slack__group-line"><span class="slack__mention">@jeff</span> gained <strong>3</strong> karma. Total: <strong>18</strong>.</span>'
+                + '</span>'
+            }
+          ]
         },
         {
-          segments: [
-            { text: '/leaderboard', cls: 'slack__cmd' }
-          ],
-          reply: '<span class="slack__board">'
-            + '<span class="slack__board-title">Karma leaderboard</span>'
-            + '<span class="slack__board-row"><span class="slack__rank">1.</span> <span class="slack__mention">@bobmortimer</span> <b>58</b></span>'
-            + '<span class="slack__board-row"><span class="slack__rank">2.</span> <span class="slack__mention">@dana</span> <b>41</b></span>'
-            + '<span class="slack__board-row"><span class="slack__rank">3.</span> <span class="slack__mention">@sam</span> <b>33</b></span>'
-            + '</span>'
+          messages: [
+            {
+              author: mark, time: '4:20',
+              segments: [
+                { text: '/leaderboard', cls: 'slack__cmd' }
+              ],
+              reply: '<span class="slack__board">'
+                + '<span class="slack__board-title">Karma leaderboard</span>'
+                + '<span class="slack__board-row"><span class="slack__rank">1.</span> <span class="slack__mention">@superhans</span> <b>62</b></span>'
+                + '<span class="slack__board-row"><span class="slack__rank">2.</span> <span class="slack__mention">@sophiechapman</span> <b>61</b></span>'
+                + '<span class="slack__board-row"><span class="slack__rank">3.</span> <span class="slack__mention">@dobby</span> <b>37</b></span>'
+                + '</span>'
+            }
+          ]
         }
       ];
 
@@ -256,6 +263,7 @@
       var idx = 0;
       function after(ms, fn) { timers.push(setTimeout(fn, ms)); }
       function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+      function toBottom() { feed.scrollTop = feed.scrollHeight; }
 
       var dots = scenes.map(function (_, i) {
         var d = document.createElement('button');
@@ -267,18 +275,46 @@
         return d;
       });
 
-      function reset() {
-        clearTimers();
-        line.textContent = '';
-        cursor.style.display = '';
-        thread.hidden = true;
-        reply.hidden = true;
-        bot.innerHTML = typingDots;
-        dots.forEach(function (d, j) { d.classList.toggle('slack__dot--active', j === idx); });
+      function avatarHTML(author) {
+        if (author.img) {
+          return '<div class="slack__avatar"><img src="' + author.img + '" alt="" width="36" height="36" /></div>';
+        }
+        return '<div class="slack__avatar slack__avatar--user">' + (author.initials || '') + '</div>';
       }
 
-      function fill(scene) {
-        scene.segments.forEach(function (seg) {
+      function addUserMsg(author, time, withCursor) {
+        var msg = document.createElement('div');
+        msg.className = 'slack__msg';
+        msg.innerHTML = avatarHTML(author)
+          + '<div class="slack__body">'
+          + '<div class="slack__meta"><span class="slack__name">' + author.name + '</span>'
+          + '<span class="slack__time">' + time + '&#8239;AM</span></div>'
+          + '<div class="slack__text"><span class="slack__line"></span>'
+          + (withCursor ? '<span class="slack__cursor"></span>' : '') + '</div></div>';
+        feed.appendChild(msg);
+        toBottom();
+        return {
+          line: msg.querySelector('.slack__line'),
+          cursor: msg.querySelector('.slack__cursor')
+        };
+      }
+
+      function addBotMsg(html) {
+        var msg = document.createElement('div');
+        msg.className = 'slack__msg slack__reply';
+        msg.innerHTML = '<div class="slack__avatar slack__avatar--bot">'
+          + '<img src="plusplus-icon.png" alt="" width="36" height="36" /></div>'
+          + '<div class="slack__body">'
+          + '<div class="slack__meta"><span class="slack__name">plusplus</span>'
+          + '<span class="slack__badge">APP</span><span class="slack__time">Just now</span></div>'
+          + '<div class="slack__text">' + html + '</div></div>';
+        feed.appendChild(msg);
+        toBottom();
+        return msg.querySelector('.slack__text');
+      }
+
+      function fillLine(line, segments) {
+        segments.forEach(function (seg) {
           var span = document.createElement('span');
           if (seg.cls) span.className = seg.cls;
           span.textContent = seg.text;
@@ -286,41 +322,11 @@
         });
       }
 
-      // Reserve the card's height for the tallest scene so revealing the
-      // thread/reply (and swapping in the leaderboard) never reflows the page.
-      function reserveHeight() {
-        var saved = {
-          line: line.innerHTML,
-          bot: bot.innerHTML,
-          cursor: cursor.style.display,
-          thread: thread.hidden,
-          reply: reply.hidden
-        };
-        demo.style.minHeight = '';
-        cursor.style.display = 'none';
-        thread.hidden = false;
-        reply.hidden = false;
-        var max = 0;
-        scenes.forEach(function (scene) {
-          line.innerHTML = '';
-          fill(scene);
-          bot.innerHTML = scene.reply;
-          var h = demo.getBoundingClientRect().height;
-          if (h > max) max = h;
-        });
-        line.innerHTML = saved.line;
-        bot.innerHTML = saved.bot;
-        cursor.style.display = saved.cursor;
-        thread.hidden = saved.thread;
-        reply.hidden = saved.reply;
-        demo.style.minHeight = Math.ceil(max) + 'px';
-      }
-
-      function typeSegments(scene, done) {
+      function typeLine(line, segments, done) {
         var si = 0;
         (function typeSeg() {
-          if (si >= scene.segments.length) { done(); return; }
-          var seg = scene.segments[si++];
+          if (si >= segments.length) { done(); return; }
+          var seg = segments[si++];
           var span = document.createElement('span');
           if (seg.cls) span.className = seg.cls;
           line.appendChild(span);
@@ -328,7 +334,8 @@
           (function typeChar() {
             if (ci < seg.text.length) {
               span.textContent += seg.text[ci++];
-              after(110, typeChar);
+              toBottom();
+              after(85, typeChar);
               return;
             }
             typeSeg();
@@ -336,35 +343,46 @@
         })();
       }
 
-      function jump(i) {
-        idx = i;
-        reset();
-        var scene = scenes[idx];
-        if (prefersReduced) {
-          fill(scene);
-          cursor.style.display = 'none';
-          thread.hidden = false;
-          reply.hidden = false;
-          bot.innerHTML = scene.reply;
-          return;
-        }
-        typeSegments(scene, function () {
-          after(650, function () {
-            cursor.style.display = 'none';
-            thread.hidden = false;
-            reply.hidden = false;
+      function playMessages(messages, mi, done) {
+        if (mi >= messages.length) { done(); return; }
+        var m = messages[mi];
+        var u = addUserMsg(m.author, m.time, true);
+        typeLine(u.line, m.segments, function () {
+          after(520, function () {
+            if (u.cursor) u.cursor.remove();
+            var bot = addBotMsg(typingDots);
+            after(1450, function () {
+              bot.innerHTML = m.reply;
+              toBottom();
+              var last = mi === messages.length - 1;
+              after(last ? 2600 : 1000, function () {
+                playMessages(messages, mi + 1, done);
+              });
+            });
           });
-          after(2100, function () { bot.innerHTML = scene.reply; });
-          after(6500, function () { jump((idx + 1) % scenes.length); });
         });
       }
 
-      reserveHeight();
-      var resizeTimer;
-      window.addEventListener('resize', function () {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(reserveHeight, 150);
-      });
+      function renderStatic(scene) {
+        scene.messages.forEach(function (m) {
+          var u = addUserMsg(m.author, m.time, false);
+          fillLine(u.line, m.segments);
+          addBotMsg(m.reply);
+        });
+        toBottom();
+      }
+
+      function jump(i) {
+        idx = i;
+        clearTimers();
+        feed.innerHTML = '';
+        dots.forEach(function (d, j) { d.classList.toggle('slack__dot--active', j === idx); });
+        var scene = scenes[idx];
+        if (prefersReduced) { renderStatic(scene); return; }
+        playMessages(scene.messages, 0, function () {
+          jump((idx + 1) % scenes.length);
+        });
+      }
 
       var started = false;
       var io = new IntersectionObserver(function (entries) {

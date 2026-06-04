@@ -143,6 +143,18 @@ code {
   box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.8);
 }
 
+.slack__feed {
+  height: 256px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3d42 transparent;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+.slack__feed::-webkit-scrollbar { width: 6px; }
+.slack__feed::-webkit-scrollbar-thumb { background: #3a3d42; border-radius: 3px; }
+
 .slack__msg {
   display: flex;
   gap: 10px;
