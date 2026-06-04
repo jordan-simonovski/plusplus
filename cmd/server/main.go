@@ -46,7 +46,9 @@ func main() {
 	slackClient := appslack.NewTeamResolvingClient(tokenStore, cfg.SlackBotToken)
 
 	nameResolver := appslack.NewCachedNameResolver(slackClient, time.Hour)
-	karmaService := domain.NewKarmaService(karmaRepo, domain.RandomSnarkPicker(), cfg.MaxKarmaPerAction, nameResolver)
+	interactionStore := persistence.NewDynamoInteractionStore(dynamoClient, cfg.KarmaTable)
+	karmaService := domain.NewKarmaService(karmaRepo, domain.RandomSnarkPicker(), cfg.MaxKarmaPerAction, nameResolver).
+		WithKarmaWar(domain.NewKarmaWar(interactionStore))
 
 	var oauthInstall, oauthCallback http.HandlerFunc
 	if cfg.SlackClientID != "" && workspaceRepo != nil {

@@ -240,10 +240,36 @@ func (p *EventsProcessor) handleSubteamKarma(
 		}
 	}
 
+	// Record the group-level action and pick up any "karma train" snark. Done
+	// once per award (not per member) so repeated awards to the same group chain.
+	warLine := p.observeGroupAward(ctx, envelope.TeamID, envelope.Event.User, seg.SubteamID, seg.SymbolRun, snarkLevel)
+
 	if len(lines) == 0 {
 		return nil
 	}
+	if warLine != "" {
+		lines = append(lines, warLine)
+	}
 	return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, strings.Join(lines, "\n"), threadTS)
+}
+
+// groupAwardObserver is satisfied by *domain.KarmaService; other KarmaActionService
+// implementations (tests, noop) simply don't trigger train detection.
+type groupAwardObserver interface {
+	ObserveGroupAward(ctx context.Context, teamID, actorID, groupID string, sign, snarkLevel int) (string, error)
+}
+
+func (p *EventsProcessor) observeGroupAward(ctx context.Context, teamID, actorID, groupID, symbolRun string, snarkLevel int) string {
+	obs, ok := p.karmaService.(groupAwardObserver)
+	if !ok {
+		return ""
+	}
+	sign := domain.SymbolRunSign(symbolRun)
+	if sign == 0 {
+		return ""
+	}
+	line, _ := obs.ObserveGroupAward(ctx, teamID, actorID, groupID, sign, snarkLevel)
+	return line
 }
 
 func dedupePreserveOrder(ids []string) []string {
