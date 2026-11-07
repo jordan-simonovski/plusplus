@@ -28,3 +28,8 @@ output "runtime_secret_access_key" {
   value       = try(aws_iam_access_key.runtime[0].secret, null)
   sensitive   = true
 }
+
+output "selfhosted_runtime_user_name" {
+  description = "IAM user for the self-hosted Railway runtime. Create an access key for it."
+  value       = aws_iam_user.runtime_selfhosted.name
+}

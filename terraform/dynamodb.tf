@@ -67,3 +67,75 @@ resource "aws_dynamodb_table" "workspaces" {
     enabled = var.point_in_time_recovery
   }
 }
+
+# ---------------------------------------------------------------------------
+# Self-hosted deployment tables. The Marketplace app (above) and the self-hosted
+# app are separate Slack apps with separate bot tokens, so their data is kept
+# apart. Same schema as above; copied rather than refactored into a module so the
+# Marketplace tables' addresses (and data) are never touched.
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table" "karma_selfhosted" {
+  name         = var.selfhosted_table_names.karma
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "team_id"
+  range_key    = "user_id"
+
+  attribute {
+    name = "team_id"
+    type = "S"
+  }
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+  attribute {
+    name = "karma_total"
+    type = "N"
+  }
+
+  global_secondary_index {
+    name            = "leaderboard"
+    hash_key        = "team_id"
+    range_key       = "karma_total"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = var.point_in_time_recovery
+  }
+}
+
+resource "aws_dynamodb_table" "channel_settings_selfhosted" {
+  name         = var.selfhosted_table_names.settings
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "team_id"
+  range_key    = "channel_id"
+
+  attribute {
+    name = "team_id"
+    type = "S"
+  }
+  attribute {
+    name = "channel_id"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = var.point_in_time_recovery
+  }
+}
+
+resource "aws_dynamodb_table" "workspaces_selfhosted" {
+  name         = var.selfhosted_table_names.workspaces
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "team_id"
+
+  attribute {
+    name = "team_id"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = var.point_in_time_recovery
+  }
+}

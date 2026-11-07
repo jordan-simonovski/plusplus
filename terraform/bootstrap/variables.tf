@@ -30,6 +30,20 @@ variable "table_names" {
   }
 }
 
+variable "selfhosted_table_names" {
+  description = "DynamoDB table names for the self-hosted deployment. The CI roles may manage them; only the self-hosted runtime user may use them. Must match terraform var.selfhosted_table_names."
+  type = object({
+    karma      = string
+    settings   = string
+    workspaces = string
+  })
+  default = {
+    karma      = "plusplus_sh_karma"
+    settings   = "plusplus_sh_channel_settings"
+    workspaces = "plusplus_sh_workspaces"
+  }
+}
+
 variable "create_github_oidc_provider" {
   description = "Create the account-level GitHub OIDC provider. Set false if one already exists in the account (it is a singleton per URL)."
   type        = bool

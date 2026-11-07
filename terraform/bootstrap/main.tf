@@ -12,6 +12,20 @@ locals {
 
   karma_table_arn = "arn:${local.partition}:dynamodb:${var.aws_region}:${local.account_id}:table/${var.table_names.karma}"
 
+  selfhosted_table_arns = [
+    for name in values(var.selfhosted_table_names) :
+    "arn:${local.partition}:dynamodb:${var.aws_region}:${local.account_id}:table/${name}"
+  ]
+
+  selfhosted_karma_table_arn = "arn:${local.partition}:dynamodb:${var.aws_region}:${local.account_id}:table/${var.selfhosted_table_names.karma}"
+
+  # Everything the CI roles manage: both deployments' tables plus the leaderboard indexes.
+  ci_table_resources = concat(
+    local.table_arns,
+    local.selfhosted_table_arns,
+    ["${local.karma_table_arn}/index/*", "${local.selfhosted_karma_table_arn}/index/*"],
+  )
+
   # ARNs of the metrics stack defined in ../metrics.tf. Names must match that
   # file; the CI role manages these resources during apply.
   metrics_lambda_arn      = "arn:${local.partition}:lambda:${var.aws_region}:${local.account_id}:function:plusplus-metrics"
@@ -150,7 +164,7 @@ data "aws_iam_policy_document" "ci_plan" {
       "dynamodb:DescribeTimeToLive",
       "dynamodb:ListTagsOfResource",
     ]
-    resources = concat(local.table_arns, ["${local.karma_table_arn}/index/*"])
+    resources = local.ci_table_resources
   }
 
   statement {
@@ -252,7 +266,7 @@ data "aws_iam_policy_document" "ci" {
       "dynamodb:TagResource",
       "dynamodb:UntagResource",
     ]
-    resources = concat(local.table_arns, ["${local.karma_table_arn}/index/*"])
+    resources = local.ci_table_resources
   }
 
   # --- metrics stack (../metrics.tf) ---------------------------------------
@@ -415,4 +429,40 @@ resource "aws_iam_user_policy" "runtime" {
 resource "aws_iam_access_key" "runtime" {
   count = var.create_runtime_access_key ? 1 : 0
   user  = aws_iam_user.runtime.name
+}
+
+# ---------------------------------------------------------------------------
+# Runtime IAM user for the self-hosted Railway service. Same least-privilege
+# shape as plusplus-runtime, scoped to the self-hosted tables only, so neither
+# deployment can read the other's data.
+# ---------------------------------------------------------------------------
+resource "aws_iam_user" "runtime_selfhosted" {
+  name = "plusplus-selfhosted-runtime"
+}
+
+data "aws_iam_policy_document" "runtime_selfhosted" {
+  statement {
+    sid       = "DescribeTables"
+    effect    = "Allow"
+    actions   = ["dynamodb:DescribeTable"]
+    resources = local.selfhosted_table_arns
+  }
+
+  statement {
+    sid    = "ItemOps"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+    ]
+    resources = concat(local.selfhosted_table_arns, ["${local.selfhosted_karma_table_arn}/index/*"])
+  }
+}
+
+resource "aws_iam_user_policy" "runtime_selfhosted" {
+  name   = "plusplus-selfhosted-runtime-dynamodb"
+  user   = aws_iam_user.runtime_selfhosted.name
+  policy = data.aws_iam_policy_document.runtime_selfhosted.json
 }
