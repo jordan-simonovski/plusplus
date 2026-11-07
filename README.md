@@ -238,7 +238,7 @@ Note the outputs:
 - **pull request** → `fmt -check`, `init`, `validate`, `plan`.
 - **push to `main`** → the above plus `apply`.
 
-The CI role's trust policy only accepts this repo's `main` branch and pull requests. To apply locally instead:
+The apply role's trust policy only accepts this repo's `main` branch; pull requests get the read-only plan role. To apply locally instead:
 
 ```bash
 cd terraform
