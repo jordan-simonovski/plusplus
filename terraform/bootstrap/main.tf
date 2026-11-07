@@ -186,8 +186,15 @@ data "aws_iam_policy_document" "ci_plan" {
 
   statement {
     sid       = "ReadMetricsLogGroup"
-    actions   = ["logs:DescribeLogGroups", "logs:ListTagsForResource"]
+    actions   = ["logs:ListTagsForResource"]
     resources = ["${local.metrics_log_group_arn}", "${local.metrics_log_group_arn}:*"]
+  }
+
+  # DescribeLogGroups is authorized account-wide, not per log group.
+  statement {
+    sid       = "DescribeLogGroups"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
   }
 
   statement {
@@ -327,7 +334,6 @@ data "aws_iam_policy_document" "ci" {
     actions = [
       "logs:CreateLogGroup",
       "logs:DeleteLogGroup",
-      "logs:DescribeLogGroups",
       "logs:PutRetentionPolicy",
       "logs:DeleteRetentionPolicy",
       "logs:ListTagsForResource",
@@ -335,6 +341,14 @@ data "aws_iam_policy_document" "ci" {
       "logs:UntagResource",
     ]
     resources = ["${local.metrics_log_group_arn}", "${local.metrics_log_group_arn}:*"]
+  }
+
+  # DescribeLogGroups is authorized account-wide, not per log group.
+  statement {
+    sid       = "DescribeLogGroups"
+    effect    = "Allow"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
   }
 
   # PutDashboard/GetDashboard/DeleteDashboards support resource ARNs;
