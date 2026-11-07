@@ -94,29 +94,6 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	}
 }
 
-func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
-	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
-	payload := []byte(`{
-		"type":"event_callback",
-		"team_id":"T1",
-		"authorizations":[{"user_id":"UBOT","is_bot":true}],
-		"event":{"type":"message","user":"U1","text":"<@UBOT> <@U2> ++++","channel":"C1","event_ts":"123.4"}
-	}`)
-	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
-	addSlackSignatureHeaders(req, "secret", payload)
-
-	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("unexpected status: %d", rec.Code)
-	}
-	if len(web.posts) != 0 {
-		t.Fatalf("expected duplicate message event skipped, got %d posts", len(web.posts))
-	}
-}
-
 func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
@@ -139,7 +116,7 @@ func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 	}
 }
 
-func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
+func TestEventsProcessorIgnoresAmbientMessage(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
@@ -156,14 +133,8 @@ func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	if len(web.posts) != 1 {
-		t.Fatalf("expected 1 post, got %d", len(web.posts))
-	}
-	if web.posts[0].channelID != "C1" {
-		t.Fatalf("unexpected channel: %s", web.posts[0].channelID)
-	}
-	if web.posts[0].threadTS != "123.4" {
-		t.Fatalf("expected thread reply, got %q", web.posts[0].threadTS)
+	if len(web.posts) != 0 {
+		t.Fatalf("expected ambient message ignored (mention-only), got %d posts", len(web.posts))
 	}
 }
 

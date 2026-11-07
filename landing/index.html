@@ -42,11 +42,11 @@
     <div class="hero__inner">
       <h1 class="hero__title">Karma for your Slack,<br /><span class="accent">made simple.</span></h1>
       <p class="hero__subtitle">
-        Mention a teammate with <code>++</code> to award points and <code>--</code> to dock them.
+        Mention <code>@plusplus</code> and a teammate with <code>++</code> to award points and <code>--</code> to dock them.
         PlusPlus keeps score, runs the leaderboard, and shuts down the karma farmers with a little snark.
       </p>
       <div class="hero__cta">
-        <a href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+        <a href="https://api.pluspluskarma.dev/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
       </div>
       <p class="hero__note">Free to add. Installs in seconds. No card, no nonsense.</p>
     </div>
@@ -67,12 +67,12 @@
         <div class="card">
           <div class="card__badge card__badge--plus">++</div>
           <h3 class="card__title">Award karma</h3>
-          <p>Mention someone followed by a run of pluses — <code>@sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
+          <p>Mention the bot and someone, followed by a run of pluses — <code>@plusplus @sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
         </div>
         <div class="card">
           <div class="card__badge card__badge--minus">&minus;&minus;</div>
           <h3 class="card__title">Dock karma</h3>
-          <p>Same idea in reverse — <code>@sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@sam —</code> still counts.</p>
+          <p>Same idea in reverse — <code>@plusplus @sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@plusplus @sam —</code> still counts.</p>
         </div>
         <div class="card">
           <div class="card__badge card__badge--cap">5</div>
@@ -87,11 +87,11 @@
       <div class="grid grid--2">
         <div class="feature">
           <h3 class="feature__title">Live leaderboard</h3>
-          <p>Run <code>/leaderboard</code> for the all-time standings. Scoped per workspace, so your numbers stay yours.</p>
+          <p>Run <code>/plusplus-leaderboard</code> for the all-time standings. Scoped per workspace, so your numbers stay yours.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Per-channel settings</h3>
-          <p>Decide whether the bot replies in-channel or in a thread with <code>/settings reply_mode thread|channel</code>.</p>
+          <p>Decide whether the bot replies in-channel or in a thread with <code>/plusplus-settings reply_mode thread|channel</code>.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Adjustable snark</h3>
@@ -116,15 +116,15 @@
       <h2 class="section__title">Commands</h2>
       <div class="commands">
         <div class="command">
-          <code class="command__name">@user ++ / @user --</code>
+          <code class="command__name">@plusplus @user ++ / --</code>
           <span class="command__desc">Award or dock karma. Min 2 symbols, capped at ±5 per message.</span>
         </div>
         <div class="command">
-          <code class="command__name">/leaderboard</code>
+          <code class="command__name">/plusplus-leaderboard</code>
           <span class="command__desc">Show the all-time karma leaderboard for the workspace.</span>
         </div>
         <div class="command">
-          <code class="command__name">/settings reply_mode thread|channel</code>
+          <code class="command__name">/plusplus-settings reply_mode thread|channel</code>
           <span class="command__desc">Configure where the bot posts its replies.</span>
         </div>
       </div>
@@ -134,12 +134,12 @@
       <h2 class="cta__title">Settle the score.</h2>
       <p class="cta__subtitle">Add PlusPlus to your workspace and let the karma economy begin.</p>
       <div class="hero__cta">
-        <a href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+        <a href="https://api.pluspluskarma.dev/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
       </div>
     </section>
   </main>
 
-  <a class="floating-cta" href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read&user_scope=" aria-label="Add to Slack">
+  <a class="floating-cta" href="https://api.pluspluskarma.dev/slack/install" aria-label="Add to Slack">
     <img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" />
   </a>
 
@@ -190,6 +190,7 @@
             {
               author: mark, time: '9:41',
               segments: [
+                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@sophiechapman', cls: 'slack__mention' },
                 { text: ' ' + plus(5), cls: 'slack__plus' }
               ],
@@ -202,6 +203,7 @@
             {
               author: mark, time: '9:42',
               segments: [
+                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@jez', cls: 'slack__mention' },
                 { text: ' ' + minus(2), cls: 'slack__minus' }
               ],
@@ -210,6 +212,7 @@
             {
               author: jez, time: '9:42',
               segments: [
+                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@mark', cls: 'slack__mention' },
                 { text: ' ' + minus(3), cls: 'slack__minus' }
               ],
@@ -218,6 +221,7 @@
             {
               author: mark, time: '9:43',
               segments: [
+                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@jez', cls: 'slack__mention' },
                 { text: ' ' + minus(5), cls: 'slack__minus' }
               ],
@@ -230,6 +234,7 @@
             {
               author: mark, time: '11:08',
               segments: [
+                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@jlb-credit', cls: 'slack__mention' },
                 { text: ' ' + plus(4), cls: 'slack__plus' }
               ],
@@ -246,7 +251,7 @@
             {
               author: mark, time: '4:20',
               segments: [
-                { text: '/leaderboard', cls: 'slack__cmd' }
+                { text: '/plusplus-leaderboard', cls: 'slack__cmd' }
               ],
               reply: '<span class="slack__board">'
                 + '<span class="slack__board-title">Karma leaderboard</span>'

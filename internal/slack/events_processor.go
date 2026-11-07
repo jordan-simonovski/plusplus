@@ -82,7 +82,8 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if envelope.Type != "event_callback" || !isSupportedKarmaEventType(envelope.Event.Type) {
+	// Karma is mention-only: the app requests no *:history scopes, so app_mention is the only input.
+	if envelope.Type != "event_callback" || envelope.Event.Type != "app_mention" {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
@@ -91,14 +92,6 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 	// Only plain "message sent" events have no subtype (Slack omits it). Anything else
 	// (message_changed, bot_message, channel_join, file_share, …) must not apply karma.
 	if envelope.Event.Subtype != "" || envelope.Event.BotID != "" {
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-		return
-	}
-
-	// Slack delivers both app_mention and message for the same post when the bot is @-mentioned.
-	// Process app_mention only; otherwise karma is applied twice.
-	if envelope.Event.Type == "message" && messageEventDuplicatesAppMention(envelope) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
@@ -173,30 +166,6 @@ func defaultThreadTS(event SlackEvent) string {
 		return event.ThreadTS
 	}
 	return event.EventTS
-}
-
-func isSupportedKarmaEventType(eventType string) bool {
-	return eventType == "app_mention" || eventType == "message"
-}
-
-func botUserIDFromAuthorizations(auth []SlackAuthorization) string {
-	for _, a := range auth {
-		if a.IsBot && a.UserID != "" {
-			return a.UserID
-		}
-	}
-	if len(auth) > 0 && auth[0].UserID != "" {
-		return auth[0].UserID
-	}
-	return ""
-}
-
-func messageEventDuplicatesAppMention(envelope EventEnvelope) bool {
-	botID := botUserIDFromAuthorizations(envelope.Authorizations)
-	if botID == "" {
-		return false
-	}
-	return strings.Contains(envelope.Event.Text, "<@"+botID+">")
 }
 
 func (p *EventsProcessor) handleSubteamKarma(

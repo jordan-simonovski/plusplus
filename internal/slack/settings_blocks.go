@@ -53,7 +53,7 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 			"type": "section",
 			"text": map[string]interface{}{
 				"type": "mrkdwn",
-				"text": "*Channel settings*\n• Reply mode: `/settings reply_mode thread|channel`\n• Snark level: choose below (1 = dry, 10 = spicy).",
+				"text": "*Channel settings*\n• Reply mode: `/plusplus-settings reply_mode thread|channel`\n• Snark level: choose below (1 = dry, 10 = spicy).",
 			},
 		},
 		{

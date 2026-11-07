@@ -3,11 +3,12 @@
 Slack karma service implemented in Go, designed as a long-running container.
 
 ## Features
-- Listens to Slack Events API `message` and `app_mention` events and applies karma.
+- Listens to Slack Events API `app_mention` events and applies karma (`@plusplus @sam ++`). No `*:history` scopes.
 - Supports `+` and `-` runs with discord-karma parity rules (min 2 symbols, cap at 6 symbols => max delta 5).
 - Slash commands:
-  - `/leaderboard`
-  - `/settings reply_mode thread|channel`
+  - `/plusplus-leaderboard`
+  - `/plusplus-settings reply_mode thread|channel`
+  - Add `help` (or anything unknown) to either command for usage.
 - DynamoDB storage with workspace (`team_id`) isolation.
 
 ## Environment Variables
@@ -61,8 +62,6 @@ make test-integration
 1. Create a Slack app and install it to your workspace.
 2. Add bot token scopes:
    - `app_mentions:read`
-   - `channels:history`
-   - `groups:history`
    - `chat:write`
    - `commands`
    - `usergroups:read`
@@ -71,11 +70,9 @@ make test-integration
    - Request URL: `https://<public-url>/slack/events`
    - Subscribe to bot events:
      - `app_mention`
-     - `message.channels`
-     - `message.groups` (private channels)
 4. Configure Slash Commands:
-   - `/leaderboard` Request URL: `https://<public-url>/slack/commands`
-   - `/settings` Request URL: `https://<public-url>/slack/commands`
+   - `/plusplus-leaderboard` Request URL: `https://<public-url>/slack/commands`
+   - `/plusplus-settings` Request URL: `https://<public-url>/slack/commands`
 5. Set local env vars:
    - `SLACK_SIGNING_SECRET`
    - `SLACK_BOT_TOKEN`
@@ -195,14 +192,14 @@ Once cutover is verified, `cmd/migrate` and the `pgx` dependency can be deleted.
 After Railway deploys and you have a public URL (custom domain `https://api.pluspluskarma.dev` or the default `https://<railway-domain>`):
 
 - Event Subscriptions request URL: `https://api.pluspluskarma.dev/slack/events`
-- `/leaderboard` command URL: `https://api.pluspluskarma.dev/slack/commands`
-- `/settings` command URL: `https://api.pluspluskarma.dev/slack/commands`
+- `/plusplus-leaderboard` command URL: `https://api.pluspluskarma.dev/slack/commands`
+- `/plusplus-settings` command URL: `https://api.pluspluskarma.dev/slack/commands`
 - OAuth redirect URL: `https://api.pluspluskarma.dev/slack/oauth/callback`
 
 ### 5) Verify deployment
 1. Hit `https://api.pluspluskarma.dev/healthz` and confirm `status: ok`.
-2. In Slack, run `/leaderboard` and verify a response.
-3. In a channel with the bot, send ambient events like `<@user> +++` and verify persisted karma.
+2. In Slack, run `/plusplus-leaderboard` and verify a response.
+3. In a channel with the bot, mention the bot like `@plusplus <@user> +++` and verify persisted karma.
 
 ## Infrastructure (Terraform)
 

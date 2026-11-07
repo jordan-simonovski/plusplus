@@ -19,7 +19,7 @@ import (
 
 func TestCommandsProcessorLeaderboard(t *testing.T) {
 	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
-	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fleaderboard&text=")
+	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fplusplus-leaderboard&text=")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)
 
@@ -41,7 +41,7 @@ func TestCommandsProcessorLeaderboard(t *testing.T) {
 
 func TestCommandsProcessorSettingsUsage(t *testing.T) {
 	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
-	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fsettings&text=bad")
+	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fplusplus-settings&text=bad")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)
 
@@ -58,6 +58,32 @@ func TestCommandsProcessorSettingsUsage(t *testing.T) {
 	}
 	if response.ResponseType != "ephemeral" {
 		t.Fatalf("unexpected response type: %s", response.ResponseType)
+	}
+}
+
+func TestCommandsProcessorHelpAndUnknownInput(t *testing.T) {
+	cases := []string{
+		"command=%2Fplusplus-leaderboard&text=help",
+		"command=%2Fplusplus-leaderboard&text=whatever",
+		"command=%2Fplusplus-settings&text=help",
+		"command=%2Fplusplus-settings&text=reply_mode+sideways",
+		"command=%2Fplusplus-nope&text=",
+	}
+	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	for _, c := range cases {
+		body := []byte("team_id=T1&channel_id=C1&user_id=U1&" + c)
+		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
+		addSignedHeaders(req, "secret", body)
+		rec := httptest.NewRecorder()
+		processor.ProcessCommand(rec, req)
+
+		var response MessageResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatalf("%s: decode response: %v", c, err)
+		}
+		if response.ResponseType != "ephemeral" || response.Text != usageText {
+			t.Fatalf("%s: expected ephemeral usage text, got %+v", c, response)
+		}
 	}
 }
 

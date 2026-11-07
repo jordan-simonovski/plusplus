@@ -64,17 +64,36 @@ func (p *CommandsProcessor) ProcessCommand(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// ponytail: legacy names kept so self-hosted apps on the old manifest keep working.
 	switch payload.Command {
-	case "/leaderboard":
+	case "/plusplus-leaderboard", "/leaderboard":
+		if payload.Text != "" {
+			respondUsage(w)
+			return
+		}
 		p.respondLeaderboard(w, r, payload)
-	case "/settings":
+	case "/plusplus-settings", "/settings":
 		p.respondSettings(w, r, payload)
 	default:
-		writeJSON(w, http.StatusOK, MessageResponse{
-			ResponseType: "ephemeral",
-			Text:         "Unsupported command. Use /leaderboard or /settings.",
-		})
+		respondUsage(w)
 	}
+}
+
+// usageText answers "help" or unknown input on any command (Slack Marketplace requirement).
+var usageText = fmt.Sprintf(
+	"*PlusPlus help*\n"+
+		"• Give karma: mention the bot and a teammate, e.g. `@plusplus @sam ++` (`--` docks karma)\n"+
+		"• `/plusplus-leaderboard` — all-time karma leaderboard\n"+
+		"• `/plusplus-settings` — interactive channel settings\n"+
+		"• `/plusplus-settings reply_mode thread|channel` — where the bot replies\n"+
+		"• `/plusplus-settings snark <%d–%d>` — how sassy the bot is\n"+
+		"Questions or feedback? <https://pluspluskarma.dev/support.html|Get support> or email contact@pluspluskarma.dev",
+	domain.MinSnarkLevel,
+	domain.MaxSnarkLevel,
+)
+
+func respondUsage(w http.ResponseWriter) {
+	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: usageText})
 }
 
 func parseSlashPayload(body []byte) (SlashCommandPayload, error) {
@@ -126,14 +145,7 @@ func (p *CommandsProcessor) respondSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	writeJSON(w, http.StatusOK, MessageResponse{
-		ResponseType: "ephemeral",
-		Text: fmt.Sprintf(
-			"Usage:\n• `/settings` — interactive snark level\n• `/settings reply_mode thread|channel`\n• `/settings snark <%d–%d>`",
-			domain.MinSnarkLevel,
-			domain.MaxSnarkLevel,
-		),
-	})
+	respondUsage(w)
 }
 
 func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r *http.Request, payload SlashCommandPayload) {
@@ -158,10 +170,7 @@ func (p *CommandsProcessor) respondReplyMode(w http.ResponseWriter, r *http.Requ
 	case string(ReplyModeChannel):
 		mode = ReplyModeChannel
 	default:
-		writeJSON(w, http.StatusOK, MessageResponse{
-			ResponseType: "ephemeral",
-			Text:         "Usage: /settings reply_mode thread|channel",
-		})
+		respondUsage(w)
 		return
 	}
 
