@@ -3,11 +3,13 @@
 Slack karma service implemented in Go, designed as a long-running container.
 
 ## Features
-- Listens to Slack Events API `message` and `app_mention` events and applies karma.
+- Applies karma from emoji reactions (`reaction_added` / `reaction_removed`): 👏 🙌 ⭐ 🔥 🏆 give 1–5, 🙄 👎 🤡 💩 🗑️ take 1–5. Each reactor's strongest reaction on a message counts. Channels and workspaces can remap tiers to their own emojis with `/plusplus-settings emoji`.
+- Applies karma from `@user ++` text: via `app_mention` (`@plusplus @sam ++`) everywhere, and from plain channel messages (`message` events) when the app has the `*:history` scopes (self-hosted).
 - Supports `+` and `-` runs with discord-karma parity rules (min 2 symbols, cap at 6 symbols => max delta 5).
 - Slash commands:
   - `/plusplus-leaderboard`
   - `/plusplus-settings reply_mode thread|channel`
+  - `/plusplus-settings emoji [workspace] [<tier> :emoji: | reset]`
   - Add `help` (or anything unknown) to either command for usage.
 - DynamoDB storage with workspace (`team_id`) isolation.
 
@@ -23,6 +25,7 @@ Slack karma service implemented in Go, designed as a long-running container.
 - `SLACK_SIGNING_SECRET` (required for real Slack traffic)
 - `SLACK_BOT_TOKEN` (single-workspace / dev only; used to post via the Slack Web API when OAuth is **not** configured). When `SLACK_CLIENT_ID` is set (multi-tenant OAuth), per-workspace tokens are authoritative and this value is ignored.
 - `PUBLIC_BASE_URL` (required when `SLACK_CLIENT_ID` is set; fixes the OAuth `redirect_uri` to a trusted origin instead of inferring it from request headers)
+- `SLACK_OAUTH_SCOPES` (optional; bot scopes `/slack/install` requests. Defaults to the Marketplace set without `*:history`. Self-hosted installs that want plain `@sam ++` add `channels:history,groups:history`.)
 
 Tables are created automatically on startup (on-demand / pay-per-request billing) if they do not already exist. The IAM principal therefore needs `dynamodb:CreateTable` and `dynamodb:DescribeTable` in addition to the item operations (see deployment section).
 
@@ -59,25 +62,8 @@ make test-integration
 ```
 
 ## Slack App Setup (dev)
-1. Create a Slack app and install it to your workspace.
-2. Add bot token scopes:
-   - `app_mentions:read`
-   - `channels:history`
-   - `groups:history`
-   - `chat:write`
-   - `commands`
-   - `usergroups:read`
-   - `users:read`
-3. Configure **Event Subscriptions**:
-   - Request URL: `https://<public-url>/slack/events`
-   - Subscribe to bot events:
-     - `app_mention`
-     - `message.channels`
-     - `message.groups` (private channels)
-4. Configure Slash Commands:
-   - `/plusplus-leaderboard` Request URL: `https://<public-url>/slack/commands`
-   - `/plusplus-settings` Request URL: `https://<public-url>/slack/commands`
-5. Set local env vars:
+1. Create a Slack app **from a manifest** using [`slack-app-manifest.self-hosted.yaml`](slack-app-manifest.self-hosted.yaml) (replace `<your-host>` / `<public-url>`), then install it to your workspace. It includes reactions plus the `*:history` scopes for plain `@sam ++`. Drop `channels:history`, `groups:history` and the `message.*` events if you only want reactions and `@plusplus` mentions. (The Marketplace app uses [`slack-app-manifest.yaml`](slack-app-manifest.yaml).)
+2. Set local env vars:
    - `SLACK_SIGNING_SECRET`
    - `SLACK_BOT_TOKEN`
 

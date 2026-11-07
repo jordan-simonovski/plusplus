@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"plusplus/internal/domain"
 )
 
 const (
@@ -143,4 +146,76 @@ func (r *DynamoSettingsRepository) SetSnarkLevel(
 		return fmt.Errorf("set snark level: %w", err)
 	}
 	return nil
+}
+
+// workspaceSettingsID is the settings-table row holding workspace-wide settings.
+// Real channel IDs start with C, G or D, so it can't collide.
+const workspaceSettingsID = "#workspace"
+
+const attrReactionTiers = "reaction_tiers"
+
+// GetReactionOverrides returns the emoji tier overrides for the channel and for the workspace.
+func (r *DynamoSettingsRepository) GetReactionOverrides(ctx context.Context, teamID, channelID string) (channel, workspace domain.TierOverrides, err error) {
+	if channel, err = r.getReactionOverrides(ctx, teamID, channelID); err != nil {
+		return nil, nil, err
+	}
+	if workspace, err = r.getReactionOverrides(ctx, teamID, workspaceSettingsID); err != nil {
+		return nil, nil, err
+	}
+	return channel, workspace, nil
+}
+
+// SetReactionOverrides replaces the overrides for a channel, or for the workspace when
+// workspace is true. An empty map clears them.
+func (r *DynamoSettingsRepository) SetReactionOverrides(ctx context.Context, teamID, channelID string, workspace bool, actorUserID string, overrides domain.TierOverrides) error {
+	scope := channelID
+	if workspace {
+		scope = workspaceSettingsID
+	}
+	blob, err := json.Marshal(overrides)
+	if err != nil {
+		return fmt.Errorf("encode reaction tiers: %w", err)
+	}
+	_, err = r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:        aws.String(r.table),
+		Key:              r.key(teamID, scope),
+		UpdateExpression: aws.String("SET #tiers = :tiers, #by = :by, #at = :at"),
+		ExpressionAttributeNames: map[string]string{
+			"#tiers": attrReactionTiers,
+			"#by":    attrUpdatedBy,
+			"#at":    attrUpdatedAt,
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":tiers": &types.AttributeValueMemberS{Value: string(blob)},
+			":by":    &types.AttributeValueMemberS{Value: actorUserID},
+			":at":    &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("set reaction tiers: %w", err)
+	}
+	return nil
+}
+
+func (r *DynamoSettingsRepository) getReactionOverrides(ctx context.Context, teamID, scope string) (domain.TierOverrides, error) {
+	out, err := r.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName:            aws.String(r.table),
+		Key:                  r.key(teamID, scope),
+		ProjectionExpression: aws.String("#tiers"),
+		ExpressionAttributeNames: map[string]string{
+			"#tiers": attrReactionTiers,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get reaction tiers: %w", err)
+	}
+	attr, ok := out.Item[attrReactionTiers].(*types.AttributeValueMemberS)
+	if !ok || attr.Value == "" {
+		return nil, nil
+	}
+	var overrides domain.TierOverrides
+	if err := json.Unmarshal([]byte(attr.Value), &overrides); err != nil {
+		return nil, nil // corrupt blob: fall back to defaults rather than breaking karma
+	}
+	return overrides, nil
 }

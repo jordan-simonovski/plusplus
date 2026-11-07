@@ -10,17 +10,21 @@ display_information:
 
     \r
 
-    Give or take karma by adding a run of + or - symbols after a mention:\r
+    React to someone's message to give them karma. Stronger emojis give more:\r
 
     \r
 
-    @alex ++ gives Alex karma.\r
+    👏 +1   🙌 +2   ⭐ +3   🔥 +4   🏆 +5\r
 
-    @sam +++ gives more (longer runs award more, up to a per-action cap).\r
+    🙄 -1   👎 -2   🤡 -3   💩 -4   🗑️ -5\r
 
-    @jordan -- removes karma.\r
+    \r
 
-    PlusPlus reads ordinary channel messages and mentions, recognizes the karma pattern, applies the change, and replies with the running total. You can also @PlusPlus it directly. It understands real-world typing quirks—iOS and macOS love to turn -- into an em dash or en dash, and PlusPlus counts those correctly so karma isn't silently dropped.\r
+    Your strongest reaction on a message counts, and removing it takes the karma back. Every workspace and channel can swap in its own emojis, including custom ones, so in-jokes can become karma.\r
+
+    \r
+
+    Prefer typing? Mention the bot with a run of + or - symbols: @plusplus @alex ++ gives Alex karma, longer runs give more (up to a cap), and -- takes it away. PlusPlus replies with the running total. It understands real-world typing quirks—iOS and macOS love to turn -- into an em dash or en dash, and PlusPlus counts those correctly so karma isn't silently dropped.\r
 
     \r
 
@@ -44,6 +48,8 @@ display_information:
 
     /plusplus-settings reply_mode thread|channel — choose whether PlusPlus replies in-thread or in the channel.\r
 
+    /plusplus-settings emoji — see or change which emojis give karma in a channel or the whole workspace.\r
+
     /plusplus-settings snark <1–10> — set how much personality the bot's rejection and \"capped\" messages have, from dry and minimal (1) to maximum sass (10).\r
 
     Add \"help\" to any command (e.g. /plusplus-settings help) for usage instructions.\r
@@ -52,7 +58,7 @@ display_information:
 
     \r
 
-    PlusPlus is multi-workspace by design. Every workspace's data is isolated by team, and karma totals, leaderboards, and settings never cross between workspaces. Installation uses Slack's standard OAuth flow with CSRF-protected state, and your workspace's bot token is stored encrypted at rest. PlusPlus only requests the scopes it needs to read messages and mentions, post replies, and run its slash commands. Message text is processed in memory to detect ++/-- and is never stored or logged.\r
+    PlusPlus is multi-workspace by design. Every workspace's data is isolated by team, and karma totals, leaderboards, and settings never cross between workspaces. Installation uses Slack's standard OAuth flow with CSRF-protected state, and your workspace's bot token is stored encrypted at rest. PlusPlus never reads channel history. It only sees reactions and messages that mention it, and requests just the scopes it needs to post replies and run its slash commands. Message text is processed in memory and never stored or logged.\r
 
     \r
 
@@ -82,7 +88,7 @@ features:
     - command: /plusplus-settings
       url: https://api.pluspluskarma.dev/slack/commands
       description: Configure channel settings for PlusPlus.
-      usage_hint: "[reply_mode thread|channel] [snark 1-10] [help]"
+      usage_hint: "[reply_mode thread|channel] [snark 1-10] [emoji] [help]"
       should_escape: false
 oauth_config:
   redirect_urls:
@@ -91,10 +97,9 @@ oauth_config:
   scopes:
     bot:
       - app_mentions:read
-      - channels:history
       - chat:write
       - commands
-      - groups:history
+      - reactions:read
       - usergroups:read
       - users:read
   pkce_enabled: false
@@ -103,8 +108,8 @@ settings:
     request_url: https://api.pluspluskarma.dev/slack/events
     bot_events:
       - app_mention
-      - message.channels
-      - message.groups
+      - reaction_added
+      - reaction_removed
   interactivity:
     is_enabled: true
     request_url: https://api.pluspluskarma.dev/slack/interactions

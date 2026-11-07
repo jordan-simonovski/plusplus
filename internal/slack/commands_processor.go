@@ -23,11 +23,25 @@ type SettingsCommandService interface {
 	GetSnarkLevel(ctx context.Context, teamID string, channelID string) (int, error)
 }
 
+// ReactionSettingsCommands edits the emoji -> karma tier maps.
+type ReactionSettingsCommands interface {
+	Describe(ctx context.Context, teamID, channelID string) (string, error)
+	SetTier(ctx context.Context, teamID, channelID string, workspace bool, actorUserID, tier string, emojis []string) (string, error)
+	Reset(ctx context.Context, teamID, channelID string, workspace bool, actorUserID string) (string, error)
+}
+
 type CommandsProcessor struct {
 	signingSecret   string
 	leaderboard     LeaderboardService
 	settingsService SettingsCommandService
+	reactions       ReactionSettingsCommands
 	version         string
+}
+
+// WithReactionSettings enables `/plusplus-settings emoji ...`.
+func (p *CommandsProcessor) WithReactionSettings(reactions ReactionSettingsCommands) *CommandsProcessor {
+	p.reactions = reactions
+	return p
 }
 
 func NewCommandsProcessor(signingSecret string, leaderboard LeaderboardService, settingsService SettingsCommandService, version string) *CommandsProcessor {
@@ -87,6 +101,10 @@ var usageText = fmt.Sprintf(
 		"• `/plusplus-settings` — interactive channel settings\n"+
 		"• `/plusplus-settings reply_mode thread|channel` — where the bot replies\n"+
 		"• `/plusplus-settings snark <%d–%d>` — how sassy the bot is\n"+
+		"• React to a message to give its author karma: 👏 +1, 🙌 +2, ⭐ +3, 🔥 +4, 🏆 +5 (🙄 👎 🤡 💩 🗑️ take 1–5 away)\n"+
+		"• `/plusplus-settings emoji` — see this channel's karma reactions\n"+
+		"• `/plusplus-settings emoji [workspace] <tier> :emoji:` — use your own emoji for a tier (-5 to 5)\n"+
+		"• `/plusplus-settings emoji [workspace] reset` — go back to the defaults\n"+
 		"Questions or feedback? <https://pluspluskarma.dev/support.html|Get support> or email contact@pluspluskarma.dev",
 	domain.MinSnarkLevel,
 	domain.MaxSnarkLevel,
@@ -141,6 +159,11 @@ func (p *CommandsProcessor) respondSettings(w http.ResponseWriter, r *http.Reque
 
 	if len(parts) == 2 && parts[0] == "reply_mode" {
 		p.respondReplyMode(w, r, payload, parts[1])
+		return
+	}
+
+	if parts[0] == "emoji" && p.reactions != nil {
+		p.respondEmoji(w, r, payload, parts[1:])
 		return
 	}
 
@@ -219,4 +242,30 @@ func writeJSON(w http.ResponseWriter, status int, payload MessageResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+// respondEmoji handles `/plusplus-settings emoji [workspace] [reset | <tier> :emoji: ...]`.
+func (p *CommandsProcessor) respondEmoji(w http.ResponseWriter, r *http.Request, payload SlashCommandPayload, args []string) {
+	workspace := len(args) > 0 && args[0] == "workspace"
+	if workspace {
+		args = args[1:]
+	}
+
+	var msg string
+	var err error
+	switch {
+	case len(args) == 0 && !workspace:
+		msg, err = p.reactions.Describe(r.Context(), payload.TeamID, payload.ChannelID)
+	case len(args) == 1 && args[0] == "reset":
+		msg, err = p.reactions.Reset(r.Context(), payload.TeamID, payload.ChannelID, workspace, payload.UserID)
+	case len(args) >= 2:
+		msg, err = p.reactions.SetTier(r.Context(), payload.TeamID, payload.ChannelID, workspace, payload.UserID, args[0], args[1:])
+	default:
+		respondUsage(w, payload.Command)
+		return
+	}
+	if err != nil {
+		msg = err.Error() + ". Try `/plusplus-settings emoji 3 :partyparrot:`."
+	}
+	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: msg})
 }

@@ -28,13 +28,14 @@
       <li><strong>Slack identifiers</strong> — workspace (team) IDs, channel IDs, and user IDs. These are the opaque IDs Slack assigns (e.g. <code>U012ABCDEF</code>), not names or email addresses.</li>
       <li><strong>Karma counters</strong> — each user's running karma total and their all-time peak, scoped to the workspace.</li>
       <li><strong>Channel settings</strong> — the reply mode (thread or channel) and snark level for a channel, plus the user ID that last changed them.</li>
+      <li><strong>Reaction records</strong>: for each karma emoji you add to a message, the message's channel ID and timestamp, your user ID, and the emoji name, so removing the reaction can undo the karma. Plus any custom emoji choices for a channel or workspace.</li>
       <li><strong>Timestamps</strong> — when karma was last applied, when settings were last changed, and when the app was installed.</li>
       <li><strong>Workspace bot token</strong> — the OAuth bot token Slack issues at install time, so the app can post replies. It is encrypted at rest (AES-256-GCM) and is a credential, not personal data.</li>
     </ul>
 
     <h2>What we do not store</h2>
     <ul>
-      <li><strong>Message content.</strong> Incoming Slack events are processed in memory only to detect <code>++</code> / <code>--</code> patterns. The text of your messages is never written to disk or logged.</li>
+      <li><strong>Message content.</strong> PlusPlus cannot read channel history. It only receives reactions and messages that mention it, and processes them in memory to detect karma. The text of your messages is never written to disk or logged.</li>
       <li><strong>Persisted profile data.</strong> Display names and real names are fetched from Slack on demand to show who gained or lost karma, but they are held only briefly in an in-memory cache and never written to our database. No email addresses, avatars, or other profile fields are read.</li>
       <li><strong>Cross-site tracking.</strong> No advertising identifiers and no third-party trackers. This website uses Vercel Web Analytics (see below), which is cookieless — no cookies are set, and you are not tracked across other sites.</li>
     </ul>

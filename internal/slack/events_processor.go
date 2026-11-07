@@ -27,12 +27,33 @@ type UserGroupMembersLister interface {
 	ListUserGroupMembers(ctx context.Context, teamID, userGroupID string) ([]string, error)
 }
 
+// ReactionTierProvider returns the effective emoji -> karma tier map for a channel.
+type ReactionTierProvider interface {
+	ReactionTiers(ctx context.Context, teamID, channelID string) (map[string]int, error)
+}
+
+// ReactionStateStore records each reactor's tier emojis per message and returns
+// the set as it was before the change.
+type ReactionStateStore interface {
+	AddReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string) ([]string, error)
+	RemoveReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string) ([]string, error)
+}
+
 type EventsProcessor struct {
 	signingSecret string
 	karmaService  KarmaActionService
 	settings      ChannelSettingsProvider
 	userGroups    UserGroupMembersLister
 	webClient     WebClient
+	reactionTiers ReactionTierProvider
+	reactionState ReactionStateStore
+}
+
+// WithReactions enables emoji-reaction karma. Without it reaction events are ignored.
+func (p *EventsProcessor) WithReactions(tiers ReactionTierProvider, state ReactionStateStore) *EventsProcessor {
+	p.reactionTiers = tiers
+	p.reactionState = state
+	return p
 }
 
 func NewEventsProcessor(
@@ -79,6 +100,16 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 	if envelope.Type == "url_verification" {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"challenge": envelope.Challenge})
+		return
+	}
+
+	if envelope.Type == "event_callback" && isReactionEvent(envelope.Event.Type) {
+		if err := p.handleReaction(r.Context(), envelope); err != nil {
+			http.Error(w, "failed to apply reaction karma", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
 	}
 
@@ -295,4 +326,87 @@ func dedupePreserveOrder(ids []string) []string {
 		out = append(out, id)
 	}
 	return out
+}
+
+func isReactionEvent(eventType string) bool {
+	return eventType == "reaction_added" || eventType == "reaction_removed"
+}
+
+// handleReaction turns a tier emoji reaction into karma for the message author.
+// Each reactor's award on a message is their strongest positive tier minus their
+// strongest negative tier; adding or removing a reaction applies the difference.
+// Only additions that change the award reply (in the message's thread); self-reactions
+// and removals stay silent.
+func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnvelope) error {
+	ev := envelope.Event
+	if p.reactionTiers == nil || p.reactionState == nil || ev.Item.Type != "message" {
+		return nil
+	}
+	if ev.ItemUser == "" || ev.ItemUser == ev.User || ev.ItemUser == botUserIDFromAuthorizations(envelope.Authorizations) {
+		return nil
+	}
+
+	tiers, err := p.reactionTiers.ReactionTiers(ctx, envelope.TeamID, ev.Item.Channel)
+	if err != nil {
+		return err
+	}
+	// ponytail: tiers resolve with the current map, so editing the map between an add and
+	// its removal can make the undo slightly off. Store the tier per emoji if that matters.
+	emoji := domain.NormalizeEmoji(ev.Reaction)
+	if _, ok := tiers[emoji]; !ok {
+		return nil
+	}
+
+	added := ev.Type == "reaction_added"
+	var before []string
+	if added {
+		before, err = p.reactionState.AddReaction(ctx, envelope.TeamID, ev.Item.Channel, ev.Item.TS, ev.User, emoji)
+	} else {
+		before, err = p.reactionState.RemoveReaction(ctx, envelope.TeamID, ev.Item.Channel, ev.Item.TS, ev.User, emoji)
+	}
+	if err != nil {
+		return err
+	}
+
+	after := make([]string, 0, len(before)+1)
+	for _, e := range before {
+		if e != emoji {
+			after = append(after, e)
+		}
+	}
+	if added {
+		after = append(after, emoji)
+	}
+
+	delta := domain.ReactionEffect(tiers, after) - domain.ReactionEffect(tiers, before)
+	if delta == 0 {
+		return nil
+	}
+
+	snarkLevel := domain.DefaultSnarkLevel
+	if p.settings != nil {
+		if _, level, err := p.settings.GetChannelSettings(ctx, envelope.TeamID, ev.Item.Channel); err == nil {
+			snarkLevel = domain.NormalizeSnarkLevel(level)
+		}
+	}
+
+	symbol := "+"
+	if delta < 0 {
+		symbol = "-"
+	}
+	result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
+		TeamID:       envelope.TeamID,
+		ActorUserID:  ev.User,
+		TargetUserID: ev.ItemUser,
+		TargetHandle: "<@" + ev.ItemUser + ">",
+		SymbolRun:    strings.Repeat(symbol, abs(delta)+1), // a run of n+1 symbols moves karma by n
+		SnarkLevel:   snarkLevel,
+	})
+	if err != nil {
+		return err
+	}
+	if !added || result.Message == "" {
+		return nil
+	}
+	return p.webClient.PostMessage(ctx, envelope.TeamID, ev.Item.Channel, result.Message, ev.Item.TS)
 }

@@ -32,7 +32,8 @@
     <ul>
       <li><strong>Install:</strong> click <em>Add to Slack</em> on the <a href="index.html">home page</a> and approve the requested permissions.</li>
       <li><strong>Invite the bot to a channel:</strong> run <code>/invite @plusplus</code> in the channel where you want karma tracked.</li>
-      <li><strong>Award karma:</strong> mention someone followed by two or more pluses — <code>@sam ++</code>. Use <code>--</code> to dock karma.</li>
+      <li><strong>Award karma:</strong> react to someone's message with 👏 🙌 ⭐ 🔥 or 🏆 (1–5 karma), or type <code>@plusplus @sam ++</code>. 🙄 👎 🤡 💩 🗑️ and <code>--</code> take karma away.</li>
+      <li><strong>Use your own emojis:</strong> run <code>/plusplus-settings emoji</code> to see the current ones, and <code>/plusplus-settings emoji 3 :partyparrot:</code> to change a tier for the channel (add <code>workspace</code> to change it everywhere).</li>
       <li><strong>See standings:</strong> run <code>/plusplus-leaderboard</code> for the all-time scores in your workspace.</li>
       <li><strong>Get help:</strong> add <code>help</code> to any command, e.g. <code>/plusplus-settings help</code>.</li>
     </ul>
@@ -41,7 +42,8 @@
 
     <h3>Why didn't my <code>++</code> register?</h3>
     <p>
-      A few rules apply: you need at least two symbols (<code>+</code> alone does nothing), you can't award or
+      Typed karma needs to mention <code>@plusplus</code>, and reactions only count with the emojis listed by
+      <code>/plusplus-settings emoji</code>. A few more rules apply: you need at least two symbols (<code>+</code> alone does nothing), you can't award or
       dock your own karma, and each message moves a score by at most ±5. Make sure the bot has been invited to
       the channel with <code>/invite @plusplus</code>.
     </p>

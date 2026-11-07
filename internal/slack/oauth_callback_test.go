@@ -11,7 +11,7 @@ import (
 )
 
 func newTestOAuthHandler() *OAuthHandler {
-	return NewOAuthHandler("client-id", "client-secret", "https://example.com", nil, "state-secret")
+	return NewOAuthHandler("client-id", "client-secret", "https://example.com", nil, "state-secret", "")
 }
 
 func TestCallbackWithoutStateOrCodeRedirectsToInstall(t *testing.T) {
@@ -44,7 +44,7 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 // They must complete in one pass, not bounce through a second OAuth.
 func TestCallbackWithoutStateExchangesCodeInOnePass(t *testing.T) {
 	installer := &fakeInstaller{}
-	h := NewOAuthHandler("client-id", "client-secret", "https://example.com", installer, "state-secret")
+	h := NewOAuthHandler("client-id", "client-secret", "https://example.com", installer, "state-secret", "")
 	var form url.Values
 	h.httpClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body, _ := io.ReadAll(r.Body)
