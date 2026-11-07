@@ -42,7 +42,7 @@
     <div class="hero__inner">
       <h1 class="hero__title">Karma for your Slack,<br /><span class="accent">made simple.</span></h1>
       <p class="hero__subtitle">
-        Mention <code>@plusplus</code> and a teammate with <code>++</code> to award points and <code>--</code> to dock them.
+        Mention a teammate with <code>++</code> to award points and <code>--</code> to dock them.
         PlusPlus keeps score, runs the leaderboard, and shuts down the karma farmers with a little snark.
       </p>
       <div class="hero__cta">
@@ -67,12 +67,12 @@
         <div class="card">
           <div class="card__badge card__badge--plus">++</div>
           <h3 class="card__title">Award karma</h3>
-          <p>Mention the bot and someone, followed by a run of pluses — <code>@plusplus @sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
+          <p>Mention someone followed by a run of pluses — <code>@sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
         </div>
         <div class="card">
           <div class="card__badge card__badge--minus">&minus;&minus;</div>
           <h3 class="card__title">Dock karma</h3>
-          <p>Same idea in reverse — <code>@plusplus @sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@plusplus @sam —</code> still counts.</p>
+          <p>Same idea in reverse — <code>@sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@sam —</code> still counts.</p>
         </div>
         <div class="card">
           <div class="card__badge card__badge--cap">5</div>
@@ -116,7 +116,7 @@
       <h2 class="section__title">Commands</h2>
       <div class="commands">
         <div class="command">
-          <code class="command__name">@plusplus @user ++ / --</code>
+          <code class="command__name">@user ++ / @user --</code>
           <span class="command__desc">Award or dock karma. Min 2 symbols, capped at ±5 per message.</span>
         </div>
         <div class="command">
@@ -190,7 +190,6 @@
             {
               author: mark, time: '9:41',
               segments: [
-                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@sophiechapman', cls: 'slack__mention' },
                 { text: ' ' + plus(5), cls: 'slack__plus' }
               ],
@@ -203,7 +202,6 @@
             {
               author: mark, time: '9:42',
               segments: [
-                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@jez', cls: 'slack__mention' },
                 { text: ' ' + minus(2), cls: 'slack__minus' }
               ],
@@ -212,7 +210,6 @@
             {
               author: jez, time: '9:42',
               segments: [
-                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@mark', cls: 'slack__mention' },
                 { text: ' ' + minus(3), cls: 'slack__minus' }
               ],
@@ -221,7 +218,6 @@
             {
               author: mark, time: '9:43',
               segments: [
-                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@jez', cls: 'slack__mention' },
                 { text: ' ' + minus(5), cls: 'slack__minus' }
               ],
@@ -234,7 +230,6 @@
             {
               author: mark, time: '11:08',
               segments: [
-                { text: '@plusplus ', cls: 'slack__mention' },
                 { text: '@jlb-credit', cls: 'slack__mention' },
                 { text: ' ' + plus(4), cls: 'slack__plus' }
               ],

@@ -68,14 +68,14 @@ func (p *CommandsProcessor) ProcessCommand(w http.ResponseWriter, r *http.Reques
 	switch payload.Command {
 	case "/plusplus-leaderboard", "/leaderboard":
 		if payload.Text != "" {
-			respondUsage(w)
+			respondUsage(w, payload.Command)
 			return
 		}
 		p.respondLeaderboard(w, r, payload)
 	case "/plusplus-settings", "/settings":
 		p.respondSettings(w, r, payload)
 	default:
-		respondUsage(w)
+		respondUsage(w, payload.Command)
 	}
 }
 
@@ -92,8 +92,12 @@ var usageText = fmt.Sprintf(
 	domain.MaxSnarkLevel,
 )
 
-func respondUsage(w http.ResponseWriter) {
-	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: usageText})
+func respondUsage(w http.ResponseWriter, command string) {
+	text := usageText
+	if command == "/leaderboard" || command == "/settings" {
+		text = strings.ReplaceAll(text, "/plusplus-", "/") // old manifest only registers the short names
+	}
+	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: text})
 }
 
 func parseSlashPayload(body []byte) (SlashCommandPayload, error) {
@@ -145,7 +149,7 @@ func (p *CommandsProcessor) respondSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	respondUsage(w)
+	respondUsage(w, payload.Command)
 }
 
 func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r *http.Request, payload SlashCommandPayload) {
@@ -170,7 +174,7 @@ func (p *CommandsProcessor) respondReplyMode(w http.ResponseWriter, r *http.Requ
 	case string(ReplyModeChannel):
 		mode = ReplyModeChannel
 	default:
-		respondUsage(w)
+		respondUsage(w, payload.Command)
 		return
 	}
 

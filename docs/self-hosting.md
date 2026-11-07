@@ -240,7 +240,7 @@ Point your Slack app at your instance's public URL:
 - `/plusplus-settings` command URL: `https://<your-host>/slack/commands`
 - OAuth redirect URL (OAuth mode only): `https://<your-host>/slack/oauth/callback`
 
-Required bot scopes: `app_mentions:read`,
+Required bot scopes: `app_mentions:read`, `channels:history`, `groups:history`,
 `chat:write`, `commands`, `usergroups:read`, `users:read`. See the main
 [README](../README.md#slack-app-setup-dev) for the full Slack app walkthrough.
 
@@ -250,4 +250,4 @@ Required bot scopes: `app_mentions:read`,
 
 1. `curl https://<your-host>/healthz` → `{"status":"ok",...}`.
 2. Run `/plusplus-leaderboard` in Slack and confirm a response.
-3. In a channel with the bot, send `@plusplus @someone +++` and confirm karma persists.
+3. In a channel with the bot, send `@someone +++` and confirm karma persists.

@@ -82,8 +82,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Karma is mention-only: the app requests no *:history scopes, so app_mention is the only input.
-	if envelope.Type != "event_callback" || envelope.Event.Type != "app_mention" {
+	if envelope.Type != "event_callback" || !isSupportedKarmaEventType(envelope.Event.Type) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 		return
@@ -97,7 +96,15 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(envelope.Event.Text))
+	// Slack delivers both app_mention and message for the same post when the bot is @-mentioned.
+	// Process app_mention only; otherwise karma is applied twice.
+	if envelope.Event.Type == "message" && messageEventDuplicatesAppMention(envelope) {
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		return
+	}
+
+	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(stripBotMention(envelope)))
 	if len(segments) == 0 {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
@@ -166,6 +173,39 @@ func defaultThreadTS(event SlackEvent) string {
 		return event.ThreadTS
 	}
 	return event.EventTS
+}
+
+func isSupportedKarmaEventType(eventType string) bool {
+	return eventType == "app_mention" || eventType == "message"
+}
+
+func botUserIDFromAuthorizations(auth []SlackAuthorization) string {
+	for _, a := range auth {
+		if a.IsBot && a.UserID != "" {
+			return a.UserID
+		}
+	}
+	if len(auth) > 0 && auth[0].UserID != "" {
+		return auth[0].UserID
+	}
+	return ""
+}
+
+// stripBotMention removes the bot's own <@BOT> so "@sam @plusplus ++" credits sam, not the bot.
+func stripBotMention(envelope EventEnvelope) string {
+	botID := botUserIDFromAuthorizations(envelope.Authorizations)
+	if botID == "" {
+		return envelope.Event.Text
+	}
+	return strings.ReplaceAll(envelope.Event.Text, "<@"+botID+">", "")
+}
+
+func messageEventDuplicatesAppMention(envelope EventEnvelope) bool {
+	botID := botUserIDFromAuthorizations(envelope.Authorizations)
+	if botID == "" {
+		return false
+	}
+	return strings.Contains(envelope.Event.Text, "<@"+botID+">")
 }
 
 func (p *EventsProcessor) handleSubteamKarma(

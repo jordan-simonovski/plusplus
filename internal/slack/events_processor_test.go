@@ -94,6 +94,29 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	}
 }
 
+func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
+	web := &fakeWebClient{}
+	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	payload := []byte(`{
+		"type":"event_callback",
+		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
+		"event":{"type":"message","user":"U1","text":"<@UBOT> <@U2> ++++","channel":"C1","event_ts":"123.4"}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+	addSlackSignatureHeaders(req, "secret", payload)
+
+	rec := httptest.NewRecorder()
+	processor.ProcessEvent(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if len(web.posts) != 0 {
+		t.Fatalf("expected duplicate message event skipped, got %d posts", len(web.posts))
+	}
+}
+
 func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
@@ -116,7 +139,7 @@ func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 	}
 }
 
-func TestEventsProcessorIgnoresAmbientMessage(t *testing.T) {
+func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
@@ -133,8 +156,14 @@ func TestEventsProcessorIgnoresAmbientMessage(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	if len(web.posts) != 0 {
-		t.Fatalf("expected ambient message ignored (mention-only), got %d posts", len(web.posts))
+	if len(web.posts) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(web.posts))
+	}
+	if web.posts[0].channelID != "C1" {
+		t.Fatalf("unexpected channel: %s", web.posts[0].channelID)
+	}
+	if web.posts[0].threadTS != "123.4" {
+		t.Fatalf("expected thread reply, got %q", web.posts[0].threadTS)
 	}
 }
 
@@ -316,4 +345,35 @@ func addSlackSignatureHeaders(req *http.Request, secret string, body []byte) {
 	mac.Write([]byte("v0:" + timestamp + ":"))
 	mac.Write(body)
 	req.Header.Set("X-Slack-Signature", "v0="+hex.EncodeToString(mac.Sum(nil)))
+}
+
+type recordingKarmaService struct{ targets *[]string }
+
+func (f recordingKarmaService) HandleAction(_ context.Context, action domain.KarmaAction) (domain.KarmaResult, error) {
+	*f.targets = append(*f.targets, action.TargetUserID)
+	return domain.KarmaResult{Message: "ok"}, nil
+}
+
+func TestEventsProcessorNeverCreditsTheBot(t *testing.T) {
+	cases := map[string][]string{
+		"<@U2> <@UBOT> ++": {"U2"}, // bot mention between target and run
+		"<@UBOT> ++":       nil,    // "thanks @plusplus ++"
+	}
+	for text, want := range cases {
+		var got []string
+		processor := NewEventsProcessor("secret", recordingKarmaService{targets: &got}, nil, nil, &fakeWebClient{})
+		payload := []byte(`{
+			"type":"event_callback",
+			"team_id":"T1",
+			"authorizations":[{"user_id":"UBOT","is_bot":true}],
+			"event":{"type":"app_mention","user":"U1","text":"` + text + `","channel":"C1","event_ts":"123.4"}
+		}`)
+		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
+		addSlackSignatureHeaders(req, "secret", payload)
+		processor.ProcessEvent(httptest.NewRecorder(), req)
+
+		if len(got) != len(want) || (len(want) > 0 && got[0] != want[0]) {
+			t.Fatalf("%q: expected targets %v, got %v", text, want, got)
+		}
+	}
 }
