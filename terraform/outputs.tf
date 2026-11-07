@@ -26,3 +26,12 @@ output "table_names" {
     workspaces = aws_dynamodb_table.workspaces.name
   }
 }
+
+output "selfhosted_table_names" {
+  description = "Map of logical name to DynamoDB table name for the self-hosted deployment."
+  value = {
+    karma      = aws_dynamodb_table.karma_selfhosted.name
+    settings   = aws_dynamodb_table.channel_settings_selfhosted.name
+    workspaces = aws_dynamodb_table.workspaces_selfhosted.name
+  }
+}

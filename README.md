@@ -213,6 +213,8 @@ Layout:
 - `terraform/bootstrap/` — run **once, locally, with admin credentials**. Creates the S3 state bucket, the GitHub Actions OIDC provider, the CI role, and the `plusplus-runtime` IAM user. Uses local state on purpose (it creates the bucket the main config then uses).
 - `terraform/` — the DynamoDB tables. Uses the S3 backend and is applied by CI.
 
+There are two deployments with separate data: the Marketplace app (`plusplus_*` tables, `plusplus-runtime` user) and the self-hosted app (`plusplus_sh_*` tables, `plusplus-selfhosted-runtime` user). Each runtime user can only reach its own tables. When adding tables, apply `terraform/bootstrap` first so the CI role is allowed to create them.
+
 The two are split so that **CI never has permission to modify its own IAM** — IAM is bootstrapped by a human, CI only manages tables.
 
 ### One-time bootstrap
