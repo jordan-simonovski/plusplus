@@ -76,7 +76,7 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 
 	// Group fan-out records one group-level interaction elsewhere; recording each
 	// member here would falsely trip burst detection.
-	if !action.GroupBroadcast {
+	if !action.GroupBroadcast && !action.SkipWar {
 		sign := 1
 		if outcome.Delta < 0 {
 			sign = -1

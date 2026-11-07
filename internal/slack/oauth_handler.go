@@ -65,6 +65,9 @@ func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer W
 	}
 }
 
+// Scopes is the comma-separated bot scope list /slack/install requests.
+func (h *OAuthHandler) Scopes() string { return h.scopes }
+
 func (h *OAuthHandler) redirectURI(r *http.Request) string {
 	return h.baseURL(r) + "/slack/oauth/callback"
 }

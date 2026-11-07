@@ -35,7 +35,7 @@
 
     <h2>What we do not store</h2>
     <ul>
-      <li><strong>Message content.</strong> PlusPlus cannot read channel history. It only receives reactions and messages that mention it, and processes them in memory to detect karma. The text of your messages is never written to disk or logged.</li>
+      <li><strong>Message content.</strong> PlusPlus doesn't receive your channel conversations. It only gets reactions and messages that mention it, and processes them in memory to detect karma. The text of your messages is never written to disk or logged.</li>
       <li><strong>Persisted profile data.</strong> Display names and real names are fetched from Slack on demand to show who gained or lost karma, but they are held only briefly in an in-memory cache and never written to our database. No email addresses, avatars, or other profile fields are read.</li>
       <li><strong>Cross-site tracking.</strong> No advertising identifiers and no third-party trackers. This website uses Vercel Web Analytics (see below), which is cookieless — no cookies are set, and you are not tracked across other sites.</li>
     </ul>

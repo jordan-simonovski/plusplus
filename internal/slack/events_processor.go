@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"plusplus/internal/domain"
 	"plusplus/internal/parser"
 	"strings"
+	"time"
 )
 
 type KarmaActionService interface {
@@ -32,11 +34,11 @@ type ReactionTierProvider interface {
 	ReactionTiers(ctx context.Context, teamID, channelID string) (map[string]int, error)
 }
 
-// ReactionStateStore records each reactor's tier emojis per message and returns
-// the set as it was before the change.
+// ReactionStateStore records each reactor's tier emojis per message, with the tier
+// each was worth when added, and returns the emoji -> tier map as it was before.
 type ReactionStateStore interface {
-	AddReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string) ([]string, error)
-	RemoveReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string) ([]string, error)
+	AddReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string, tier int) (map[string]int, error)
+	RemoveReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string) (map[string]int, error)
 }
 
 type EventsProcessor struct {
@@ -47,12 +49,15 @@ type EventsProcessor struct {
 	webClient     WebClient
 	reactionTiers ReactionTierProvider
 	reactionState ReactionStateStore
+	reactionCap   int
 }
 
 // WithReactions enables emoji-reaction karma. Without it reaction events are ignored.
-func (p *EventsProcessor) WithReactions(tiers ReactionTierProvider, state ReactionStateStore) *EventsProcessor {
+// maxKarmaPerAction caps each reaction tier (see domain.ClampReactionTier).
+func (p *EventsProcessor) WithReactions(tiers ReactionTierProvider, state ReactionStateStore, maxKarmaPerAction int) *EventsProcessor {
 	p.reactionTiers = tiers
 	p.reactionState = state
+	p.reactionCap = maxKarmaPerAction
 	return p
 }
 
@@ -104,7 +109,18 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if envelope.Type == "event_callback" && isReactionEvent(envelope.Event.Type) {
-		if err := p.handleReaction(r.Context(), envelope); err != nil {
+		// A timeout retry means the first delivery is still running (it doesn't stop when
+		// Slack hangs up), so processing it again would double-apply or resurrect a
+		// reaction that was removed in between. Error retries are processed normally.
+		if r.Header.Get("X-Slack-Retry-Reason") == "http_timeout" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			return
+		}
+		// Finish the work even if Slack disconnects at its 3s deadline.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
+		defer cancel()
+		if err := p.handleReaction(ctx, envelope); err != nil {
 			http.Error(w, "failed to apply reaction karma", http.StatusInternalServerError)
 			return
 		}
@@ -333,10 +349,11 @@ func isReactionEvent(eventType string) bool {
 }
 
 // handleReaction turns a tier emoji reaction into karma for the message author.
-// Each reactor's award on a message is their strongest positive tier minus their
+// Each reactor's award on a message is their strongest positive tier plus their
 // strongest negative tier; adding or removing a reaction applies the difference.
-// Only additions that change the award reply (in the message's thread); self-reactions
-// and removals stay silent.
+// Tiers are stored per reaction when added, so removals undo exactly what was given
+// even if the emoji map changed since. Only additions that change the award reply (in
+// the message's thread); self-reactions and removals stay silent.
 func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnvelope) error {
 	ev := envelope.Event
 	if p.reactionTiers == nil || p.reactionState == nil || ev.Item.Type != "message" {
@@ -345,47 +362,52 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 	if ev.ItemUser == "" || ev.ItemUser == ev.User || ev.ItemUser == botUserIDFromAuthorizations(envelope.Authorizations) {
 		return nil
 	}
-
-	tiers, err := p.reactionTiers.ReactionTiers(ctx, envelope.TeamID, ev.Item.Channel)
-	if err != nil {
-		return err
-	}
-	// ponytail: tiers resolve with the current map, so editing the map between an add and
-	// its removal can make the undo slightly off. Store the tier per emoji if that matters.
 	emoji := domain.NormalizeEmoji(ev.Reaction)
-	if _, ok := tiers[emoji]; !ok {
+	if emoji == "" {
 		return nil
 	}
+	team, channel, ts, reactor := envelope.TeamID, ev.Item.Channel, ev.Item.TS, ev.User
 
 	added := ev.Type == "reaction_added"
-	var before []string
+	var before map[string]int
+	var tier int
 	if added {
-		before, err = p.reactionState.AddReaction(ctx, envelope.TeamID, ev.Item.Channel, ev.Item.TS, ev.User, emoji)
+		tiers, err := p.reactionTiers.ReactionTiers(ctx, team, channel)
+		if err != nil {
+			return err
+		}
+		mapped, ok := tiers[emoji]
+		if !ok {
+			return nil
+		}
+		tier = domain.ClampReactionTier(mapped, p.reactionCap)
+		if before, err = p.reactionState.AddReaction(ctx, team, channel, ts, reactor, emoji, tier); err != nil {
+			return err
+		}
 	} else {
-		before, err = p.reactionState.RemoveReaction(ctx, envelope.TeamID, ev.Item.Channel, ev.Item.TS, ev.User, emoji)
-	}
-	if err != nil {
-		return err
-	}
-
-	after := make([]string, 0, len(before)+1)
-	for _, e := range before {
-		if e != emoji {
-			after = append(after, e)
+		var err error
+		if before, err = p.reactionState.RemoveReaction(ctx, team, channel, ts, reactor, emoji); err != nil {
+			return err
 		}
 	}
-	if added {
-		after = append(after, emoji)
-	}
 
-	delta := domain.ReactionEffect(tiers, after) - domain.ReactionEffect(tiers, before)
+	after := make(map[string]int, len(before)+1)
+	for e, t := range before {
+		after[e] = t
+	}
+	if added {
+		after[emoji] = tier
+	} else {
+		delete(after, emoji)
+	}
+	delta := domain.NetReactionTier(after) - domain.NetReactionTier(before)
 	if delta == 0 {
 		return nil
 	}
 
 	snarkLevel := domain.DefaultSnarkLevel
 	if p.settings != nil {
-		if _, level, err := p.settings.GetChannelSettings(ctx, envelope.TeamID, ev.Item.Channel); err == nil {
+		if _, level, err := p.settings.GetChannelSettings(ctx, team, channel); err == nil {
 			snarkLevel = domain.NormalizeSnarkLevel(level)
 		}
 	}
@@ -395,18 +417,39 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 		symbol = "-"
 	}
 	result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
-		TeamID:       envelope.TeamID,
-		ActorUserID:  ev.User,
+		TeamID:       team,
+		ActorUserID:  reactor,
 		TargetUserID: ev.ItemUser,
 		TargetHandle: "<@" + ev.ItemUser + ">",
 		SymbolRun:    strings.Repeat(symbol, abs(delta)+1), // a run of n+1 symbols moves karma by n
 		SnarkLevel:   snarkLevel,
+		SkipWar:      !added || domain.NetReactionTier(before) != 0,
 	})
 	if err != nil {
+		// Put the reaction state back so Slack's retry recomputes the same delta
+		// instead of seeing no change and dropping the karma.
+		p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
 		return err
 	}
 	if !added || result.Message == "" {
 		return nil
 	}
-	return p.webClient.PostMessage(ctx, envelope.TeamID, ev.Item.Channel, result.Message, ev.Item.TS)
+	// Karma is applied; a retry couldn't post the reply anyway (it would see no change).
+	if err := p.webClient.PostMessage(ctx, team, channel, result.Message, ts); err != nil {
+		log.Printf("reaction karma: reply failed for team %s channel %s: %v", team, channel, err)
+	}
+	return nil
+}
+
+// restoreReaction sets emoji back to its state in before (best effort).
+func (p *EventsProcessor) restoreReaction(ctx context.Context, team, channel, ts, reactor, emoji string, before map[string]int) {
+	var err error
+	if prev, ok := before[emoji]; ok {
+		_, err = p.reactionState.AddReaction(ctx, team, channel, ts, reactor, emoji, prev)
+	} else {
+		_, err = p.reactionState.RemoveReaction(ctx, team, channel, ts, reactor, emoji)
+	}
+	if err != nil {
+		log.Printf("reaction karma: could not restore state for team %s channel %s: %v", team, channel, err)
+	}
 }

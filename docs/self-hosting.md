@@ -258,6 +258,26 @@ See the main [README](../README.md#slack-app-setup-dev) for the full Slack app w
 
 ---
 
+## Upgrading to reaction karma
+
+Reaction karma needs a new scope and two new events, and the default OAuth scope
+list no longer includes the history scopes. When you upgrade an existing instance:
+
+1. In your Slack app, add the `reactions:read` scope and subscribe to the
+   `reaction_added` and `reaction_removed` bot events (or re-apply
+   [`slack-app-manifest.self-hosted.yaml`](../slack-app-manifest.self-hosted.yaml)).
+2. **OAuth mode:** set `SLACK_OAUTH_SCOPES` to your full scope list. Without it,
+   new installs request the Marketplace set, which has no `*:history` scopes, so
+   plain `@someone ++` stops working for them. The server logs the scopes it
+   requests at startup.
+3. Reinstall the app in each workspace (or re-run `/slack/install`) so the bot
+   token picks up `reactions:read`. Until then, reactions do nothing.
+
+Plain `@someone ++` keeps working for existing installs that still have the
+history scopes and `message.*` events.
+
+---
+
 ## 6. Verify
 
 1. `curl https://<your-host>/healthz` → `{"status":"ok",...}`.

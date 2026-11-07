@@ -8,6 +8,8 @@ func TestNormalizeEmoji(t *testing.T) {
 		"Fire":                "fire",
 		":-1:":                "-1",
 		":party-parrot:":      "party-parrot",
+		":thumbsdown:":        "-1",
+		"poop":                "hankey",
 		"<b>":                 "",
 		"":                    "",
 	}
@@ -37,23 +39,27 @@ func TestResolveReactionTiersLayering(t *testing.T) {
 	}
 }
 
-func TestReactionEffect(t *testing.T) {
-	tiers := ResolveReactionTiers()
+func TestNetReactionTier(t *testing.T) {
 	cases := []struct {
-		emojis []string
+		stored map[string]int
 		want   int
 	}{
 		{nil, 0},
-		{[]string{"clap"}, 1},
-		{[]string{"clap", "fire", "star"}, 4},      // highest tier only
-		{[]string{"trophy", "wastebasket"}, 0},     // +5 and -5 cancel
-		{[]string{"fire", "-1"}, 2},                // +4 - 2
-		{[]string{"thumbsdown", "clown_face"}, -3}, // strongest negative only
-		{[]string{"tada"}, 0},                      // not a tier emoji
+		{map[string]int{"clap": 1}, 1},
+		{map[string]int{"clap": 1, "fire": 4, "star": 3}, 4},     // highest tier only
+		{map[string]int{"trophy": 5, "wastebasket": -5}, 0},      // +5 and -5 cancel
+		{map[string]int{"fire": 4, "-1": -2}, 2},                 // +4 - 2
+		{map[string]int{"thumbsdown": -2, "clown_face": -3}, -3}, // strongest negative only
 	}
 	for _, c := range cases {
-		if got := ReactionEffect(tiers, c.emojis); got != c.want {
-			t.Errorf("ReactionEffect(%v) = %d, want %d", c.emojis, got, c.want)
+		if got := NetReactionTier(c.stored); got != c.want {
+			t.Errorf("NetReactionTier(%v) = %d, want %d", c.stored, got, c.want)
 		}
+	}
+}
+
+func TestClampReactionTier(t *testing.T) {
+	if ClampReactionTier(5, 3) != 3 || ClampReactionTier(-5, 3) != -3 || ClampReactionTier(2, 3) != 2 || ClampReactionTier(5, 0) != 5 {
+		t.Fatal("clamp to the per-action cap")
 	}
 }

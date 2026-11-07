@@ -3,6 +3,8 @@ package slack
 import (
 	"bytes"
 	"context"
+	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,36 +19,72 @@ func (defaultTiers) ReactionTiers(context.Context, string, string) (map[string]i
 	return domain.ResolveReactionTiers(), nil
 }
 
-// memReactionState mimics the DynamoDB string-set ADD/DELETE returning the old set.
-type memReactionState map[string][]string
+// memReactionState mimics the DynamoDB store: per-row emoji -> tier, returning the old map.
+type memReactionState map[string]map[string]int
 
-func (m memReactionState) AddReaction(_ context.Context, _, ch, ts, who, emoji string) ([]string, error) {
+func (m memReactionState) AddReaction(_ context.Context, _, ch, ts, who, emoji string, tier int) (map[string]int, error) {
 	key := ch + ts + who
-	before := append([]string(nil), m[key]...)
-	if !contains(m[key], emoji) {
-		m[key] = append(m[key], emoji)
+	before := maps.Clone(m[key])
+	if m[key] == nil {
+		m[key] = map[string]int{}
 	}
+	m[key][emoji] = tier
 	return before, nil
 }
 
-func (m memReactionState) RemoveReaction(_ context.Context, _, ch, ts, who, emoji string) ([]string, error) {
+func (m memReactionState) RemoveReaction(_ context.Context, _, ch, ts, who, emoji string) (map[string]int, error) {
 	key := ch + ts + who
-	before := append([]string(nil), m[key]...)
-	var kept []string
-	for _, e := range m[key] {
-		if e != emoji {
-			kept = append(kept, e)
-		}
+	if _, ok := m[key][emoji]; !ok {
+		return nil, nil
 	}
-	m[key] = kept
+	before := maps.Clone(m[key])
+	delete(m[key], emoji)
 	return before, nil
 }
 
-type deltaRecorder struct{ runs *[]string }
+type deltaRecorder struct {
+	runs    *[]string
+	skipWar *[]bool
+	failN   *int // fail this many calls before succeeding
+}
 
 func (d deltaRecorder) HandleAction(_ context.Context, a domain.KarmaAction) (domain.KarmaResult, error) {
+	if d.failN != nil && *d.failN > 0 {
+		*d.failN--
+		return domain.KarmaResult{}, errors.New("dynamo down")
+	}
 	*d.runs = append(*d.runs, a.TargetUserID+" "+a.SymbolRun)
+	if d.skipWar != nil {
+		*d.skipWar = append(*d.skipWar, a.SkipWar)
+	}
 	return domain.KarmaResult{Message: "applied"}, nil
+}
+
+// mutableTiers lets a test remap emojis between events.
+type mutableTiers struct{ m map[string]int }
+
+func (t *mutableTiers) ReactionTiers(context.Context, string, string) (map[string]int, error) {
+	return t.m, nil
+}
+
+type failingWeb struct{ fakeWebClient }
+
+func (f *failingWeb) PostMessage(context.Context, string, string, string, string) error {
+	return errors.New("rate_limited")
+}
+
+// sendReaction posts a signed reaction event and returns the HTTP status.
+func sendReaction(t *testing.T, p *EventsProcessor, kind, reactor, author, emoji string, headers ...string) int {
+	t.Helper()
+	body := reactionEvent(kind, reactor, author, emoji)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+	addSlackSignatureHeaders(req, "secret", body)
+	for i := 0; i+1 < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
+	}
+	rec := httptest.NewRecorder()
+	p.ProcessEvent(rec, req)
+	return rec.Code
 }
 
 func reactionEvent(kind, reactor, author, emoji string) []byte {
@@ -59,7 +97,7 @@ func reactionEvent(kind, reactor, author, emoji string) []byte {
 func TestReactionKarmaHighestTierAndUndo(t *testing.T) {
 	var runs []string
 	web := &fakeWebClient{}
-	p := NewEventsProcessor("secret", deltaRecorder{&runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{})
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
 
 	send := func(kind, reactor, author, emoji string) {
 		body := reactionEvent(kind, reactor, author, emoji)
@@ -171,5 +209,161 @@ func TestSettingsEmojiCommandRouting(t *testing.T) {
 	}
 	if out := run("emoji+9+%3Ax%3A"); !strings.Contains(out, "tier must be") {
 		t.Fatalf("bad tier should explain, got %s", out)
+	}
+}
+
+func TestReactionUndoUsesStoredTierAfterRemap(t *testing.T) {
+	var runs []string
+	tiers := &mutableTiers{m: domain.ResolveReactionTiers()}
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(tiers, memReactionState{}, 5)
+
+	sendReaction(t, p, "reaction_added", "U1", "U2", "fire") // +4
+	tiers.m = domain.ResolveReactionTiers(domain.TierOverrides{-5: {"fire"}})
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "fire")                 // must undo the +4, not "remove -5"
+	tiers.m = domain.ResolveReactionTiers(domain.TierOverrides{4: {"rocket"}}) // fire unmapped
+	sendReaction(t, p, "reaction_added", "U1", "U2", "fire")                   // ignored now
+
+	if strings.Join(runs, ",") != "U2 +++++,U2 -----" {
+		t.Fatalf("remap must not mint karma, got %v", runs)
+	}
+}
+
+func TestReactionDeltasStayWithinLowCap(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 3)
+
+	sendReaction(t, p, "reaction_added", "U1", "U2", "trophy")   // clamped to +3
+	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")     // below 3: nothing
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "trophy") // 3 -> 1: -2
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "clap")   // 1 -> 0: -1
+
+	net := 0
+	for _, r := range runs {
+		n := len(strings.Fields(r)[1]) - 1
+		if n > 3 {
+			t.Fatalf("delta %d exceeds the cap: %v", n, runs)
+		}
+		if strings.Contains(r, "-") {
+			n = -n
+		}
+		net += n
+	}
+	if net != 0 {
+		t.Fatalf("add then remove must net to zero, got %d from %v", net, runs)
+	}
+}
+
+func TestReactionStateRestoredWhenKarmaFails(t *testing.T) {
+	var runs []string
+	fail := 1
+	state := memReactionState{}
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs, failN: &fail}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, state, 5)
+
+	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire"); code != http.StatusInternalServerError {
+		t.Fatalf("karma failure should ask Slack to retry, got %d", code)
+	}
+	if len(state["C1100.1U1"]) != 0 {
+		t.Fatalf("state should be rolled back, got %v", state)
+	}
+	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire", "X-Slack-Retry-Num", "1", "X-Slack-Retry-Reason", "http_error"); code != http.StatusOK {
+		t.Fatalf("retry status %d", code)
+	}
+	if strings.Join(runs, ",") != "U2 +++++" {
+		t.Fatalf("retry should apply the karma once, got %v", runs)
+	}
+}
+
+func TestReactionTimeoutRetryIsIgnored(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire", "X-Slack-Retry-Num", "1", "X-Slack-Retry-Reason", "http_timeout"); code != http.StatusOK || len(runs) != 0 {
+		t.Fatalf("timeout retry must be acked without reprocessing: code %d runs %v", code, runs)
+	}
+}
+
+func TestReactionReplyFailureKeepsKarmaAndAcks(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &failingWeb{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire"); code != http.StatusOK || len(runs) != 1 {
+		t.Fatalf("a failed reply should not fail the event: code %d runs %v", code, runs)
+	}
+}
+
+func TestReactionUpgradesAndRemovalsSkipKarmaWar(t *testing.T) {
+	var runs []string
+	var skip []bool
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs, skipWar: &skip}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")     // first hit: counts for war detection
+	sendReaction(t, p, "reaction_added", "U1", "U2", "trophy")   // upgrade
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "trophy") // removal
+	if len(skip) != 3 || skip[0] || !skip[1] || !skip[2] {
+		t.Fatalf("SkipWar = %v, want [false true true]", skip)
+	}
+}
+
+type fakeAdmins map[string]bool
+
+func (f fakeAdmins) IsWorkspaceAdmin(_ context.Context, _, user string) (bool, error) {
+	return f[user], nil
+}
+
+func TestWorkspaceEmojiChangesNeedAdmin(t *testing.T) {
+	store := &memOverrides{}
+	s := NewReactionSettingsService(store).WithAdminCheck(fakeAdmins{"UADMIN": true})
+	ctx := context.Background()
+
+	var input *InputError
+	if _, err := s.SetTier(ctx, "T1", "C1", true, "UGUEST", "5", []string{":x:"}); !errors.As(err, &input) {
+		t.Fatalf("non-admin workspace edit should be refused, got %v", err)
+	}
+	if _, err := s.Reset(ctx, "T1", "C1", true, "UGUEST"); !errors.As(err, &input) {
+		t.Fatalf("non-admin workspace reset should be refused, got %v", err)
+	}
+	if _, err := s.SetTier(ctx, "T1", "C1", false, "UGUEST", "5", []string{":x:"}); err != nil {
+		t.Fatalf("anyone can change a channel's emojis: %v", err)
+	}
+	if _, err := s.SetTier(ctx, "T1", "C1", true, "UADMIN", "5", []string{":x:"}); err != nil {
+		t.Fatalf("admin workspace edit: %v", err)
+	}
+}
+
+type brokenOverrides struct{ memOverrides }
+
+func (b *brokenOverrides) SetReactionOverrides(context.Context, string, string, bool, string, domain.TierOverrides) error {
+	return errors.New("ProvisionedThroughputExceededException: internal detail")
+}
+
+func TestEmojiCommandBranchesAndErrors(t *testing.T) {
+	run := func(p *CommandsProcessor, text string) string {
+		body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fplusplus-settings&text=" + text)
+		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
+		addSignedHeaders(req, "secret", body)
+		rec := httptest.NewRecorder()
+		p.ProcessCommand(rec, req)
+		return rec.Body.String()
+	}
+	newP := func(store ReactionOverridesStore) *CommandsProcessor {
+		return NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test").
+			WithReactionSettings(NewReactionSettingsService(store))
+	}
+
+	store := &memOverrides{workspace: domain.TierOverrides{3: {"x"}}}
+	p := newP(store)
+	if out := run(p, "emoji+workspace+reset"); !strings.Contains(out, "reset") || len(store.workspace) != 0 {
+		t.Fatalf("workspace reset: %s %v", out, store.workspace)
+	}
+	if out := run(p, "emoji+workspace"); !strings.Contains(out, "PlusPlus help") {
+		t.Fatalf("bare `emoji workspace` should show usage, got %s", out)
+	}
+
+	broken := newP(&brokenOverrides{})
+	out := run(broken, "emoji+3+%3Ax%3A")
+	if strings.Contains(out, "Provisioned") || strings.Contains(out, "Example") || !strings.Contains(out, "try again") {
+		t.Fatalf("storage errors should be generic, got %s", out)
+	}
+
+	noReactions := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	if out := run(noReactions, "emoji"); !strings.Contains(out, "PlusPlus help") {
+		t.Fatalf("emoji without reaction support should show usage, got %s", out)
 	}
 }

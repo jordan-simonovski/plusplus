@@ -54,6 +54,9 @@ type KarmaAction struct {
 	SnarkLevel int
 	// GroupBroadcast uses short, fixed copy for self-denial instead of random snark (user group karma).
 	GroupBroadcast bool
+	// SkipWar keeps the action out of karma-war detection (reaction upgrades and removals
+	// aren't new hits, so they shouldn't read as farming or a pile-on).
+	SkipWar bool
 }
 
 type LeaderboardRequest struct {

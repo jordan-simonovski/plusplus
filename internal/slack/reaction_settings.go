@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,14 +17,51 @@ type ReactionOverridesStore interface {
 	SetReactionOverrides(ctx context.Context, teamID, channelID string, workspace bool, actorUserID string, overrides domain.TierOverrides) error
 }
 
+// WorkspaceAdminChecker reports whether a user is a workspace admin or owner.
+type WorkspaceAdminChecker interface {
+	IsWorkspaceAdmin(ctx context.Context, teamID, userID string) (bool, error)
+}
+
+// InputError is a problem with what the user typed; its message is safe to show them.
+type InputError struct{ Msg string }
+
+func (e *InputError) Error() string { return e.Msg }
+
+func inputErr(format string, args ...any) error {
+	return &InputError{Msg: fmt.Sprintf(format, args...)}
+}
+
 // ReactionSettingsService resolves and edits the emoji -> karma tier maps.
 // Channel overrides win over workspace overrides, which win over the defaults.
+// Anyone can change a channel's emojis (like reply mode and snark); workspace-wide
+// changes need a workspace admin or owner when an admin checker is set.
 type ReactionSettingsService struct {
-	store ReactionOverridesStore
+	store  ReactionOverridesStore
+	admins WorkspaceAdminChecker
 }
 
 func NewReactionSettingsService(store ReactionOverridesStore) *ReactionSettingsService {
 	return &ReactionSettingsService{store: store}
+}
+
+// WithAdminCheck restricts workspace-wide emoji changes to workspace admins and owners.
+func (s *ReactionSettingsService) WithAdminCheck(admins WorkspaceAdminChecker) *ReactionSettingsService {
+	s.admins = admins
+	return s
+}
+
+func (s *ReactionSettingsService) requireAdmin(ctx context.Context, teamID, userID string, workspace bool) error {
+	if !workspace || s.admins == nil {
+		return nil
+	}
+	ok, err := s.admins.IsWorkspaceAdmin(ctx, teamID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return inputErr("only workspace admins can change emojis for the whole workspace. Leave out `workspace` to change them for this channel")
+	}
+	return nil
 }
 
 // ReactionTiers returns the effective emoji -> tier map for a channel.
@@ -49,18 +87,21 @@ func (s *ReactionSettingsService) Describe(ctx context.Context, teamID, channelI
 func (s *ReactionSettingsService) SetTier(ctx context.Context, teamID, channelID string, workspace bool, actorUserID, tierArg string, emojiArgs []string) (string, error) {
 	tier, err := strconv.Atoi(tierArg)
 	if err != nil || !domain.ValidReactionTier(tier) {
-		return "", fmt.Errorf("tier must be -%d to -1 or 1 to %d", domain.MaxReactionTier, domain.MaxReactionTier)
+		return "", inputErr("tier must be -%d to -1 or 1 to %d", domain.MaxReactionTier, domain.MaxReactionTier)
 	}
 	if len(emojiArgs) == 0 || len(emojiArgs) > maxEmojisPerTier {
-		return "", fmt.Errorf("give 1 to %d emojis, like :fire:", maxEmojisPerTier)
+		return "", inputErr("give 1 to %d emojis, like :fire:", maxEmojisPerTier)
 	}
 	emojis := make([]string, 0, len(emojiArgs))
 	for _, arg := range emojiArgs {
 		emoji := domain.NormalizeEmoji(arg)
 		if emoji == "" {
-			return "", fmt.Errorf("%q isn't an emoji name, use the :name: form", arg)
+			return "", inputErr("%q isn't an emoji name, use the :name: form", arg)
 		}
 		emojis = append(emojis, emoji)
+	}
+	if err := s.requireAdmin(ctx, teamID, actorUserID, workspace); err != nil {
+		return "", err
 	}
 
 	channel, ws, err := s.store.GetReactionOverrides(ctx, teamID, channelID)
@@ -75,7 +116,7 @@ func (s *ReactionSettingsService) SetTier(ctx context.Context, teamID, channelID
 	for t, existing := range overrides {
 		kept := existing[:0:0]
 		for _, e := range existing {
-			if !contains(emojis, e) {
+			if !slices.Contains(emojis, e) {
 				kept = append(kept, e)
 			}
 		}
@@ -92,6 +133,9 @@ func (s *ReactionSettingsService) SetTier(ctx context.Context, teamID, channelID
 }
 
 func (s *ReactionSettingsService) Reset(ctx context.Context, teamID, channelID string, workspace bool, actorUserID string) (string, error) {
+	if err := s.requireAdmin(ctx, teamID, actorUserID, workspace); err != nil {
+		return "", err
+	}
 	if err := s.store.SetReactionOverrides(ctx, teamID, channelID, workspace, actorUserID, domain.TierOverrides{}); err != nil {
 		return "", err
 	}
@@ -121,15 +165,6 @@ func colons(emojis []string) []string {
 		out[i] = ":" + e + ":"
 	}
 	return out
-}
-
-func contains(list []string, v string) bool {
-	for _, x := range list {
-		if x == v {
-			return true
-		}
-	}
-	return false
 }
 
 func abs(n int) int {

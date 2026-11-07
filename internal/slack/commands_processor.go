@@ -3,8 +3,10 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -103,7 +105,7 @@ var usageText = fmt.Sprintf(
 		"• `/plusplus-settings snark <%d–%d>` — how sassy the bot is\n"+
 		"• React to a message to give its author karma: 👏 +1, 🙌 +2, ⭐ +3, 🔥 +4, 🏆 +5 (🙄 👎 🤡 💩 🗑️ take 1–5 away)\n"+
 		"• `/plusplus-settings emoji` — see this channel's karma reactions\n"+
-		"• `/plusplus-settings emoji [workspace] <tier> :emoji:` — use your own emoji for a tier (-5 to 5)\n"+
+		"• `/plusplus-settings emoji [workspace] <tier> :emoji:` — use your own emoji for a tier (-5 to 5); `workspace` is for admins\n"+
 		"• `/plusplus-settings emoji [workspace] reset` — go back to the defaults\n"+
 		"Questions or feedback? <https://pluspluskarma.dev/support.html|Get support> or email contact@pluspluskarma.dev",
 	domain.MinSnarkLevel,
@@ -264,8 +266,13 @@ func (p *CommandsProcessor) respondEmoji(w http.ResponseWriter, r *http.Request,
 		respondUsage(w, payload.Command)
 		return
 	}
-	if err != nil {
-		msg = err.Error() + ". Try `/plusplus-settings emoji 3 :partyparrot:`."
+	var input *InputError
+	switch {
+	case errors.As(err, &input):
+		msg = input.Msg + ". Example: `/plusplus-settings emoji 3 :partyparrot:`."
+	case err != nil:
+		log.Printf("emoji settings: team %s: %v", payload.TeamID, err)
+		msg = "Couldn't update karma emojis just now. Please try again."
 	}
 	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: msg})
 }

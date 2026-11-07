@@ -5,8 +5,10 @@ package persistence
 import (
 	"context"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	appconfig "plusplus/internal/config"
 	"plusplus/internal/domain"
@@ -36,31 +38,38 @@ func TestDynamoReactionStoreAndOverridesIntegration(t *testing.T) {
 	}
 
 	store := NewDynamoReactionStore(client, cfg.KarmaTable)
-	team, ts := "T-rx-it", "1.000"+strings.ReplaceAll(t.Name(), "/", "")
+	// Unique per run so a failed earlier run can't leave state behind.
+	team, ts := "T-rx-it", strconv.FormatInt(time.Now().UnixNano(), 10)
 	steps := []struct {
 		add    bool
 		emoji  string
+		tier   int
 		before string
 	}{
-		{true, "clap", ""},
-		{true, "fire", "clap"},
-		{true, "fire", "clap,fire"}, // duplicate add is a no-op
-		{false, "clap", "clap,fire"},
-		{false, "fire", "fire"},
-		{false, "fire", ""}, // removing from an empty set
+		{true, "clap", 1, ""},
+		{true, "fire", 4, "clap=1"},
+		{true, "fire", 4, "clap=1,fire=4"}, // duplicate add is idempotent
+		{false, "clap", 0, "clap=1,fire=4"},
+		{false, "fire", 0, "fire=4"},
+		{false, "fire", 0, ""}, // removing something never stored is a no-op
+		{false, "tada", 0, ""},
 	}
 	for i, s := range steps {
-		var got []string
+		var got map[string]int
 		if s.add {
-			got, err = store.AddReaction(ctx, team, "C1", ts, "U1", s.emoji)
+			got, err = store.AddReaction(ctx, team, "C1", ts, "U1", s.emoji, s.tier)
 		} else {
 			got, err = store.RemoveReaction(ctx, team, "C1", ts, "U1", s.emoji)
 		}
 		if err != nil {
 			t.Fatalf("step %d: %v", i, err)
 		}
-		sort.Strings(got)
-		if strings.Join(got, ",") != s.before {
+		var pairs []string
+		for e, tier := range got {
+			pairs = append(pairs, e+"="+strconv.Itoa(tier))
+		}
+		sort.Strings(pairs)
+		if strings.Join(pairs, ",") != s.before {
 			t.Fatalf("step %d (%v %s): before = %v, want %q", i, s.add, s.emoji, got, s.before)
 		}
 	}

@@ -15,8 +15,7 @@ const MaxReactionTier = 5
 type TierOverrides map[int][]string
 
 // DefaultReactionTiers applies when neither the workspace nor the channel has
-// customised a tier. Both canonical names and common aliases are listed because
-// Slack reports whichever name the emoji is registered under.
+// customised a tier. Names are Slack's canonical ones (what reaction events report).
 var DefaultReactionTiers = TierOverrides{
 	1:  {"clap"},
 	2:  {"raised_hands"},
@@ -24,13 +23,24 @@ var DefaultReactionTiers = TierOverrides{
 	4:  {"fire"},
 	5:  {"trophy"},
 	-1: {"face_with_rolling_eyes"},
-	-2: {"-1", "thumbsdown"},
+	-2: {"-1"},
 	-3: {"clown_face"},
-	-4: {"hankey", "poop"},
+	-4: {"hankey"},
 	-5: {"wastebasket"},
 }
 
 var emojiNamePattern = regexp.MustCompile(`^[a-z0-9_+'-]+$`)
+
+// emojiAliases maps names people type to the canonical names Slack puts in reaction
+// events, so `/plusplus-settings emoji 1 :thumbsup:` matches a real 👍 reaction.
+// ponytail: common aliases only; extend when someone hits one that doesn't match.
+var emojiAliases = map[string]string{
+	"thumbsup":     "+1",
+	"thumbsdown":   "-1",
+	"poop":         "hankey",
+	"shit":         "hankey",
+	"rolling_eyes": "face_with_rolling_eyes",
+}
 
 func ValidReactionTier(tier int) bool {
 	return tier != 0 && tier >= -MaxReactionTier && tier <= MaxReactionTier
@@ -45,6 +55,9 @@ func NormalizeEmoji(raw string) string {
 	}
 	if !emojiNamePattern.MatchString(name) {
 		return ""
+	}
+	if canonical, ok := emojiAliases[name]; ok {
+		return canonical
 	}
 	return name
 }
@@ -84,12 +97,12 @@ func ResolveReactionTiers(layers ...TierOverrides) map[string]int {
 	return resolved
 }
 
-// ReactionEffect is one reactor's net award on a message: their strongest
-// positive tier minus their strongest negative tier, so it stays within ±5.
-func ReactionEffect(tiers map[string]int, emojis []string) int {
+// NetReactionTier is one reactor's net award on a message from the tiers stored for
+// their reactions: strongest positive tier plus strongest negative tier, so it stays
+// within ±5 (or ±cap when tiers were clamped).
+func NetReactionTier(stored map[string]int) int {
 	best, worst := 0, 0
-	for _, emoji := range emojis {
-		tier := tiers[emoji]
+	for _, tier := range stored {
 		if tier > best {
 			best = tier
 		}
@@ -98,6 +111,19 @@ func ReactionEffect(tiers map[string]int, emojis []string) int {
 		}
 	}
 	return best + worst
+}
+
+// ClampReactionTier limits a tier to the per-action karma cap so every single
+// add or remove moves karma by at most cap and the karma service never truncates it,
+// which would break add/remove symmetry.
+func ClampReactionTier(tier, cap int) int {
+	if cap > 0 && tier > cap {
+		return cap
+	}
+	if cap > 0 && tier < -cap {
+		return -cap
+	}
+	return tier
 }
 
 // FormatReactionTiers renders the resolved map, strongest award first.

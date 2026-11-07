@@ -53,17 +53,18 @@ func main() {
 	var oauthInstall, oauthCallback http.HandlerFunc
 	if cfg.SlackClientID != "" && workspaceRepo != nil {
 		oauth := appslack.NewOAuthHandler(cfg.SlackClientID, cfg.SlackClientSecret, cfg.PublicBaseURL, workspaceRepo, cfg.SlackSigningSecret, cfg.SlackOAuthScopes)
+		log.Printf("oauth: /slack/install requests scopes %q (set SLACK_OAUTH_SCOPES to change)", oauth.Scopes())
 		oauthInstall = oauth.Install
 		oauthCallback = oauth.Callback
 	}
 
-	reactionSettings := appslack.NewReactionSettingsService(settingsRepo)
+	reactionSettings := appslack.NewReactionSettingsService(settingsRepo).WithAdminCheck(slackClient)
 	reactionState := persistence.NewDynamoReactionStore(dynamoClient, cfg.KarmaTable)
 
 	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
 		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient).
-			WithReactions(reactionSettings, reactionState)),
+			WithReactions(reactionSettings, reactionState, cfg.MaxKarmaPerAction)),
 		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, version.Version).
 			WithReactionSettings(reactionSettings)),
 		interactions,
