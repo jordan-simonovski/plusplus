@@ -46,7 +46,7 @@
         PlusPlus keeps score, runs the leaderboard, and shuts down the karma farmers with a little snark.
       </p>
       <div class="hero__cta">
-        <a href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+        <a href="https://api.pluspluskarma.dev/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
       </div>
       <p class="hero__note">Free to add. Installs in seconds. No card, no nonsense.</p>
     </div>
@@ -87,11 +87,11 @@
       <div class="grid grid--2">
         <div class="feature">
           <h3 class="feature__title">Live leaderboard</h3>
-          <p>Run <code>/leaderboard</code> for the all-time standings. Scoped per workspace, so your numbers stay yours.</p>
+          <p>Run <code>/plusplus-leaderboard</code> for the all-time standings. Scoped per workspace, so your numbers stay yours.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Per-channel settings</h3>
-          <p>Decide whether the bot replies in-channel or in a thread with <code>/settings reply_mode thread|channel</code>.</p>
+          <p>Decide whether the bot replies in-channel or in a thread with <code>/plusplus-settings reply_mode thread|channel</code>.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Adjustable snark</h3>
@@ -120,11 +120,11 @@
           <span class="command__desc">Award or dock karma. Min 2 symbols, capped at ±5 per message.</span>
         </div>
         <div class="command">
-          <code class="command__name">/leaderboard</code>
+          <code class="command__name">/plusplus-leaderboard</code>
           <span class="command__desc">Show the all-time karma leaderboard for the workspace.</span>
         </div>
         <div class="command">
-          <code class="command__name">/settings reply_mode thread|channel</code>
+          <code class="command__name">/plusplus-settings reply_mode thread|channel</code>
           <span class="command__desc">Configure where the bot posts its replies.</span>
         </div>
       </div>
@@ -134,12 +134,12 @@
       <h2 class="cta__title">Settle the score.</h2>
       <p class="cta__subtitle">Add PlusPlus to your workspace and let the karma economy begin.</p>
       <div class="hero__cta">
-        <a href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+        <a href="https://api.pluspluskarma.dev/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
       </div>
     </section>
   </main>
 
-  <a class="floating-cta" href="https://slack.com/oauth/v2/authorize?client_id=563253631139.10891515254629&scope=app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read&user_scope=" aria-label="Add to Slack">
+  <a class="floating-cta" href="https://api.pluspluskarma.dev/slack/install" aria-label="Add to Slack">
     <img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" />
   </a>
 
@@ -246,7 +246,7 @@
             {
               author: mark, time: '4:20',
               segments: [
-                { text: '/leaderboard', cls: 'slack__cmd' }
+                { text: '/plusplus-leaderboard', cls: 'slack__cmd' }
               ],
               reply: '<span class="slack__board">'
                 + '<span class="slack__board-title">Karma leaderboard</span>'

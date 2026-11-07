@@ -236,8 +236,8 @@ In OAuth mode, set `PUBLIC_BASE_URL` to the externally visible HTTPS origin.
 Point your Slack app at your instance's public URL:
 
 - Event Subscriptions request URL: `https://<your-host>/slack/events`
-- `/leaderboard` command URL: `https://<your-host>/slack/commands`
-- `/settings` command URL: `https://<your-host>/slack/commands`
+- `/plusplus-leaderboard` command URL: `https://<your-host>/slack/commands`
+- `/plusplus-settings` command URL: `https://<your-host>/slack/commands`
 - OAuth redirect URL (OAuth mode only): `https://<your-host>/slack/oauth/callback`
 
 Required bot scopes: `app_mentions:read`, `channels:history`, `groups:history`,
@@ -249,5 +249,5 @@ Required bot scopes: `app_mentions:read`, `channels:history`, `groups:history`,
 ## 6. Verify
 
 1. `curl https://<your-host>/healthz` → `{"status":"ok",...}`.
-2. Run `/leaderboard` in Slack and confirm a response.
+2. Run `/plusplus-leaderboard` in Slack and confirm a response.
 3. In a channel with the bot, send `@someone +++` and confirm karma persists.

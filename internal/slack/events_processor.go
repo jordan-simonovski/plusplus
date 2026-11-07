@@ -104,7 +104,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(envelope.Event.Text))
+	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(stripBotMention(envelope)))
 	if len(segments) == 0 {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
@@ -189,6 +189,15 @@ func botUserIDFromAuthorizations(auth []SlackAuthorization) string {
 		return auth[0].UserID
 	}
 	return ""
+}
+
+// stripBotMention removes the bot's own <@BOT> so "@sam @plusplus ++" credits sam, not the bot.
+func stripBotMention(envelope EventEnvelope) string {
+	botID := botUserIDFromAuthorizations(envelope.Authorizations)
+	if botID == "" {
+		return envelope.Event.Text
+	}
+	return strings.ReplaceAll(envelope.Event.Text, "<@"+botID+">", "")
 }
 
 func messageEventDuplicatesAppMention(envelope EventEnvelope) bool {
