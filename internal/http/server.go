@@ -56,8 +56,13 @@ func writeOAuthDisabled(w http.ResponseWriter) {
 	_, _ = w.Write([]byte("OAuth is not enabled. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and TOKEN_ENCRYPTION_KEY on the server, then redeploy.\n"))
 }
 
+// maxBodyBytes caps every request body. Slack payloads are a few KB; handlers
+// read the whole body before verifying the signature, so this bounds what an
+// unauthenticated client can make the process buffer.
+const maxBodyBytes = 1 << 20
+
 func (s *Server) Handler() http.Handler {
-	return s.mux
+	return http.MaxBytesHandler(s.mux, maxBodyBytes)
 }
 
 type healthResponse struct {

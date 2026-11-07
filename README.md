@@ -228,7 +228,8 @@ The GitHub OIDC provider is account-global (one per URL). If your account alread
 
 Note the outputs:
 - `state_bucket_name` → put it in `terraform/backend.hcl` (replace `REPLACE_WITH_STATE_BUCKET_NAME`).
-- `ci_role_arn` → add as a GitHub **repository variable** named `AWS_ROLE_ARN` (Settings → Secrets and variables → Actions → Variables).
+- `ci_role_arn` → add as a GitHub **repository variable** named `AWS_ROLE_ARN` (Settings → Secrets and variables → Actions → Variables). Only `main` can assume it.
+- `ci_plan_role_arn` → add as a repository variable named `AWS_PLAN_ROLE_ARN`. Pull requests use this read-only role for `plan`.
 - `runtime_user_name` → create its access key for Railway: `aws iam create-access-key --user-name plusplus-runtime`.
 
 ### CI

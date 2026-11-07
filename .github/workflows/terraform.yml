@@ -37,7 +37,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          # PRs get the read-only plan role; only main can assume the apply role.
+          role-to-assume: ${{ github.event_name == 'push' && vars.AWS_ROLE_ARN || vars.AWS_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
@@ -54,7 +55,8 @@ jobs:
         run: terraform validate
 
       - name: Plan
-        run: terraform plan -input=false -no-color
+        # The plan role can't write the S3 lockfile, so PR plans skip locking.
+        run: terraform plan -input=false -no-color -lock=${{ github.event_name == 'push' }}
 
       - name: Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

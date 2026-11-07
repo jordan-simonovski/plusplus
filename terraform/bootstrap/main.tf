@@ -89,16 +89,124 @@ data "aws_iam_policy_document" "ci_assume_role" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Allow the main branch (apply) and pull requests (plan) of this repo only.
+    # Apply role: main branch only. Pull requests use the read-only plan role
+    # below, since a PR can edit the workflow and skip its `if:` guard.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repository}:ref:refs/heads/main",
-        "repo:${var.github_repository}:pull_request",
-      ]
+      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
     }
   }
+}
+
+data "aws_iam_policy_document" "ci_plan_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.github_oidc_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:pull_request"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ci_plan" {
+  name               = "plusplus-ci-terraform-plan"
+  assume_role_policy = data.aws_iam_policy_document.ci_plan_assume_role.json
+}
+
+# Read-only mirror of the apply policy: enough for `terraform plan -lock=false`.
+data "aws_iam_policy_document" "ci_plan" {
+  statement {
+    sid       = "TerraformStateBucket"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.state.arn]
+  }
+
+  statement {
+    sid       = "TerraformStateRead"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.state.arn}/plusplus/*"]
+  }
+
+  statement {
+    sid = "ReadDynamoTables"
+    actions = [
+      "dynamodb:DescribeTable",
+      "dynamodb:DescribeContinuousBackups",
+      "dynamodb:DescribeTimeToLive",
+      "dynamodb:ListTagsOfResource",
+    ]
+    resources = concat(local.table_arns, ["${local.karma_table_arn}/index/*"])
+  }
+
+  statement {
+    sid = "ReadMetricsLambdaRole"
+    actions = [
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+    ]
+    resources = [local.metrics_lambda_role_arn]
+  }
+
+  statement {
+    sid = "ReadMetricsLambda"
+    actions = [
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionCodeSigningConfig",
+      "lambda:ListVersionsByFunction",
+      "lambda:GetPolicy",
+      "lambda:ListTags",
+    ]
+    resources = [local.metrics_lambda_arn]
+  }
+
+  statement {
+    sid       = "ReadMetricsSchedule"
+    actions   = ["events:DescribeRule", "events:ListTargetsByRule", "events:ListTagsForResource"]
+    resources = [local.metrics_event_rule_arn]
+  }
+
+  statement {
+    sid       = "ReadMetricsLogGroup"
+    actions   = ["logs:DescribeLogGroups", "logs:ListTagsForResource"]
+    resources = ["${local.metrics_log_group_arn}", "${local.metrics_log_group_arn}:*"]
+  }
+
+  statement {
+    sid       = "ReadMetricsDashboard"
+    actions   = ["cloudwatch:GetDashboard"]
+    resources = [local.metrics_dashboard_arn]
+  }
+
+  statement {
+    sid       = "ListMetricsDashboards"
+    actions   = ["cloudwatch:ListDashboards"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "ci_plan" {
+  name   = "plusplus-ci-terraform-plan"
+  role   = aws_iam_role.ci_plan.id
+  policy = data.aws_iam_policy_document.ci_plan.json
 }
 
 resource "aws_iam_role" "ci" {
