@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "landing/index.html"
+        ],
+        "createdAt": "2026-11-07T02:37:23.728Z",
+        "reason": "Claude decided: .slack__typing dots are the demo's bot-typing indicator, shown only between a posted message and the bot reply; intentional demo state, predates session"
+      }
+    ]
+  }
+}

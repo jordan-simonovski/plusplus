@@ -29,7 +29,7 @@
   <header class="hero">
     <nav class="nav">
       <a class="brand" href="index.html">
-        <img class="brand__logo" src="plusplus-icon.png" alt="PlusPlus logo" width="36" height="36" />
+        <img class="brand__logo" src="plusplus-icon.png" alt="" width="36" height="36" />
         <span class="brand__name">plusplus</span>
       </a>
       <div class="nav__links">
@@ -45,17 +45,21 @@
         Mention a teammate with <code>++</code> to award points and <code>--</code> to dock them.
         PlusPlus keeps score, runs the leaderboard, and shuts down the karma farmers with a little snark.
       </p>
-      <div class="hero__cta">
+      <div class="hero__cta" data-install>
         <a href="https://api.pluspluskarma.dev/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
       </div>
-      <p class="hero__note">Free to add. Installs in seconds. No card, no nonsense.</p>
+      <p class="hero__note">Free to add. Installs in seconds. No card, no&nbsp;nonsense.</p>
     </div>
 
-    <div class="hero__demo" aria-hidden="true">
-      <div class="slack" id="slack-demo">
+    <div class="hero__demo">
+      <div class="slack" id="slack-demo" aria-hidden="true">
+        <div class="slack__header"># general <span>· 14 members</span></div>
         <div class="slack__feed" id="slack-feed"></div>
+        <div class="slack__composer" id="slack-composer">
+          <span class="slack__placeholder">Message #general</span><span id="slack-draft"></span><span class="slack__caret"></span>
+        </div>
       </div>
-      <div class="slack__dots" id="slack-dots" aria-hidden="true"></div>
+      <div class="slack__tabs" id="slack-tabs" role="group" aria-label="Demo examples"></div>
     </div>
   </header>
 
@@ -63,35 +67,35 @@
     <section class="section" id="how">
       <h2 class="section__title">How it works</h2>
       <p class="section__lead">No setup, no syntax to memorize. Just talk like you already do.</p>
-      <div class="grid grid--3">
-        <div class="card">
-          <div class="card__badge card__badge--plus">++</div>
-          <h3 class="card__title">Award karma</h3>
+      <ol class="rules">
+        <li class="rule">
+          <span class="rule__glyph rule__glyph--plus" aria-hidden="true">++</span>
+          <h3 class="rule__title">Award karma</h3>
           <p>Mention someone followed by a run of pluses — <code>@sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
-        </div>
-        <div class="card">
-          <div class="card__badge card__badge--minus">&minus;&minus;</div>
-          <h3 class="card__title">Dock karma</h3>
+        </li>
+        <li class="rule">
+          <span class="rule__glyph rule__glyph--minus" aria-hidden="true">--</span>
+          <h3 class="rule__title">Dock karma</h3>
           <p>Same idea in reverse — <code>@sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@sam —</code> still counts.</p>
-        </div>
-        <div class="card">
-          <div class="card__badge card__badge--cap">5</div>
-          <h3 class="card__title">Capped &amp; fair</h3>
+        </li>
+        <li class="rule">
+          <span class="rule__glyph rule__glyph--cap" aria-hidden="true">±5</span>
+          <h3 class="rule__title">Capped &amp; fair</h3>
           <p>Each hit moves the needle by at most ±5, so nobody mints a fortune with one giant <code>+++++++++</code>. Self-awards are denied.</p>
-        </div>
-      </div>
+        </li>
+      </ol>
     </section>
 
     <section class="section section--alt" id="features">
       <h2 class="section__title">What you get</h2>
-      <div class="grid grid--2">
+      <div class="features">
         <div class="feature">
           <h3 class="feature__title">Live leaderboard</h3>
           <p>Run <code>/plusplus-leaderboard</code> for the all-time standings. Scoped per workspace, so your numbers stay yours.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Per-channel settings</h3>
-          <p>Decide whether the bot replies in-channel or in a thread with <code>/plusplus-settings reply_mode thread|channel</code>.</p>
+          <p>Decide whether the bot replies in-channel or in a thread with <code class="code--long">/plusplus-settings reply_mode thread|channel</code>.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Adjustable snark</h3>
@@ -130,16 +134,16 @@
       </div>
     </section>
 
-    <section class="section section--cta">
+    <section class="section section--cta" id="install">
       <h2 class="cta__title">Settle the score.</h2>
       <p class="cta__subtitle">Add PlusPlus to your workspace and let the karma economy begin.</p>
-      <div class="hero__cta">
+      <div class="hero__cta" data-install>
         <a href="https://api.pluspluskarma.dev/slack/install"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
       </div>
     </section>
   </main>
 
-  <a class="floating-cta" href="https://api.pluspluskarma.dev/slack/install" aria-label="Add to Slack">
+  <a class="floating-cta" href="https://api.pluspluskarma.dev/slack/install" inert>
     <img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" />
   </a>
 
@@ -156,21 +160,34 @@
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 
+    // Floating install button: only between the hero CTA and the closing CTA,
+    // so it never doubles up with an install button already on screen.
     (function () {
       var floating = document.querySelector('.floating-cta');
-      var heroCta = document.querySelector('.hero__cta');
-      if (!floating || !heroCta) return;
+      var ctas = document.querySelectorAll('[data-install]');
+      if (!floating || ctas.length < 2) return;
+      var heroGone = false, endReached = false;
 
-      var observer = new IntersectionObserver(function (entries) {
-        floating.classList.toggle('floating-cta--visible', !entries[0].isIntersecting);
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          var above = e.boundingClientRect.top < 0;
+          if (e.target === ctas[0]) heroGone = !e.isIntersecting && above;
+          else endReached = e.isIntersecting || above;
+        });
+        var show = heroGone && !endReached;
+        floating.classList.toggle('floating-cta--visible', show);
+        floating.inert = !show;
       });
-      observer.observe(heroCta);
+      io.observe(ctas[0]);
+      io.observe(ctas[ctas.length - 1]);
     })();
 
     (function () {
       var demo = document.getElementById('slack-demo');
       var feed = document.getElementById('slack-feed');
-      var dotsWrap = document.getElementById('slack-dots');
+      var composer = document.getElementById('slack-composer');
+      var draft = document.getElementById('slack-draft');
+      var tabsWrap = document.getElementById('slack-tabs');
       if (!demo || !feed) return;
 
       var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -179,138 +196,101 @@
       var mark = { name: 'Mark Corrigan', img: 'assets/mark.webp' };
       var jez = { name: 'Jeremy Usborne', img: 'assets/jez.webp' };
 
-      function plus(n) { return new Array(n + 1).join('+'); }
-      function minus(n) { return new Array(n + 1).join('-'); }
+      function run(ch, n) { return new Array(n + 1).join(ch); }
+      function at(handle) { return { text: '@' + handle, cls: 'slack__mention' }; }
+      function sym(ch, n) { return { text: ' ' + run(ch, n), cls: ch === '+' ? 'slack__plus' : 'slack__minus' }; }
 
-      // Each scene is a sequence of messages. A message is typed out by its
-      // author, then plusplus replies in-channel underneath it.
+      // Mirrors internal/domain/messages.go: the whole line is italic, the name
+      // bold. A run of n symbols moves karma by n-1 (karma_rules.go), capped at 5.
+      function applied(name, verb, delta, from, to) {
+        return '<span class="slack__line"><em><strong>' + name + '</strong> ' + verb + ' ' + delta
+          + ' karma. Total: <span class="slack__total" data-from="' + from + '">' + to + '</span>.</em></span>';
+      }
+      function snark(text) { return '<span class="slack__line"><em>' + text + '</em></span>'; }
+
       var scenes = [
         {
-          messages: [
-            {
-              author: mark, time: '9:41',
-              segments: [
-                { text: '@sophiechapman', cls: 'slack__mention' },
-                { text: ' ' + plus(5), cls: 'slack__plus' }
-              ],
-              reply: '<span class="slack__mention">@sophiechapman</span> gained <strong>4</strong> karma. Total: <strong>61</strong>.'
-            }
-          ]
+          label: 'Award',
+          messages: [{
+            author: mark, time: '9:41 AM',
+            segments: [at('sophie'), sym('+', 5)],
+            reply: applied('Sophie Chapman', 'gained', 4, 57, 61)
+          }]
         },
         {
+          label: 'Feud',
           messages: [
             {
-              author: mark, time: '9:42',
-              segments: [
-                { text: '@jez', cls: 'slack__mention' },
-                { text: ' ' + minus(2), cls: 'slack__minus' }
-              ],
-              reply: '<span class="slack__mention">@jez</span> lost <strong>2</strong> karma. Total: <strong>7</strong>.'
+              author: mark, time: '9:42 AM',
+              segments: [at('jez'), sym('-', 3)],
+              reply: applied('Jeremy Usborne', 'lost', 2, 9, 7)
             },
             {
-              author: jez, time: '9:42',
-              segments: [
-                { text: '@mark', cls: 'slack__mention' },
-                { text: ' ' + minus(3), cls: 'slack__minus' }
-              ],
-              reply: '<span class="slack__mention">@mark</span> lost <strong>3</strong> karma. Total: <strong>14</strong>.'
+              author: jez, time: '9:42 AM',
+              segments: [at('mark'), sym('-', 4)],
+              reply: applied('Mark Corrigan', 'lost', 3, 17, 14) + snark('Tit, meet tat.')
             },
             {
-              author: mark, time: '9:43',
-              segments: [
-                { text: '@jez', cls: 'slack__mention' },
-                { text: ' ' + minus(5), cls: 'slack__minus' }
-              ],
-              reply: '<span class="slack__mention">@jez</span> lost <strong>5</strong> karma. Total: <strong>2</strong>. <em>Settle down, you two.</em>'
+              author: mark, time: '9:43 AM',
+              segments: [at('jez'), sym('-', 6)],
+              reply: applied('Jeremy Usborne', 'lost', 5, 7, 2) + snark('Settle down, you two.')
             }
           ]
         },
         {
-          messages: [
-            {
-              author: mark, time: '11:08',
-              segments: [
-                { text: '@jlb-credit', cls: 'slack__mention' },
-                { text: ' ' + plus(4), cls: 'slack__plus' }
-              ],
-              reply: '<span class="slack__group">'
-                + '<span class="slack__group-line"><span class="slack__mention">@johnson</span> gained <strong>3</strong> karma. Total: <strong>49</strong>.</span>'
-                + '<span class="slack__group-line"><span class="slack__mention">@dobby</span> gained <strong>3</strong> karma. Total: <strong>37</strong>.</span>'
-                + '<span class="slack__group-line"><span class="slack__mention">@jeff</span> gained <strong>3</strong> karma. Total: <strong>18</strong>.</span>'
-                + '</span>'
-            }
-          ]
+          label: 'Group',
+          messages: [{
+            author: mark, time: '11:08 AM',
+            segments: [at('jlb-credit'), sym('+', 4)],
+            reply: applied('Alan Johnson', 'gained', 3, 46, 49)
+              + applied('Dobby', 'gained', 3, 34, 37)
+              + applied('Jeff Heaney', 'gained', 3, 15, 18)
+          }]
         },
         {
-          messages: [
-            {
-              author: mark, time: '4:20',
-              segments: [
-                { text: '/plusplus-leaderboard', cls: 'slack__cmd' }
-              ],
-              reply: '<span class="slack__board">'
-                + '<span class="slack__board-title">Karma leaderboard</span>'
-                + '<span class="slack__board-row"><span class="slack__rank">1.</span> <span class="slack__mention">@superhans</span> <b>62</b></span>'
-                + '<span class="slack__board-row"><span class="slack__rank">2.</span> <span class="slack__mention">@sophiechapman</span> <b>61</b></span>'
-                + '<span class="slack__board-row"><span class="slack__rank">3.</span> <span class="slack__mention">@dobby</span> <b>37</b></span>'
-                + '</span>'
-            }
-          ]
+          label: 'Capped',
+          messages: [{
+            author: jez, time: '2:17 PM',
+            segments: [at('superhans'), sym('+', 12)],
+            reply: snark('Easy there, turbo. Nobody gets more than 5 karma per hit.')
+              + snark('Buzzkill mode enabled: capped to 5 karma.')
+              + applied('Super Hans', 'gained', 5, 57, 62)
+          }]
+        },
+        {
+          label: 'Leaderboard',
+          messages: [{
+            author: mark, time: '4:20 PM',
+            segments: [{ text: '/plusplus-leaderboard', cls: 'slack__cmd' }],
+            reply: '<span class="slack__board">'
+              + '<span class="slack__line">All-time karma leaderboard</span>'
+              + '<span class="slack__line">1. <em><strong>Super Hans</strong></em> - 62</span>'
+              + '<span class="slack__line">2. <em><strong>Sophie Chapman</strong></em> - 61</span>'
+              + '<span class="slack__line">3. <em><strong>Dobby</strong></em> - 37</span>'
+              + '</span>'
+          }]
         }
       ];
 
       var timers = [];
       var idx = 0;
+      var running = false;
       function after(ms, fn) { timers.push(setTimeout(fn, ms)); }
       function clearTimers() { timers.forEach(clearTimeout); timers = []; }
       function toBottom() { feed.scrollTop = feed.scrollHeight; }
 
-      var dots = scenes.map(function (_, i) {
-        var d = document.createElement('button');
-        d.type = 'button';
-        d.className = 'slack__dot';
-        d.setAttribute('aria-label', 'Example ' + (i + 1));
-        d.addEventListener('click', function () { jump(i); });
-        dotsWrap.appendChild(d);
-        return d;
+      var tabs = scenes.map(function (scene, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'slack__tab';
+        b.textContent = scene.label;
+        b.addEventListener('click', function () { jump(i); });
+        tabsWrap.appendChild(b);
+        return b;
       });
 
       function avatarHTML(author) {
-        if (author.img) {
-          return '<div class="slack__avatar"><img src="' + author.img + '" alt="" width="36" height="36" /></div>';
-        }
-        return '<div class="slack__avatar slack__avatar--user">' + (author.initials || '') + '</div>';
-      }
-
-      function addUserMsg(author, time, withCursor) {
-        var msg = document.createElement('div');
-        msg.className = 'slack__msg';
-        msg.innerHTML = avatarHTML(author)
-          + '<div class="slack__body">'
-          + '<div class="slack__meta"><span class="slack__name">' + author.name + '</span>'
-          + '<span class="slack__time">' + time + '&#8239;AM</span></div>'
-          + '<div class="slack__text"><span class="slack__line"></span>'
-          + (withCursor ? '<span class="slack__cursor"></span>' : '') + '</div></div>';
-        feed.appendChild(msg);
-        toBottom();
-        return {
-          line: msg.querySelector('.slack__line'),
-          cursor: msg.querySelector('.slack__cursor')
-        };
-      }
-
-      function addBotMsg(html) {
-        var msg = document.createElement('div');
-        msg.className = 'slack__msg slack__reply';
-        msg.innerHTML = '<div class="slack__avatar slack__avatar--bot">'
-          + '<img src="plusplus-icon.png" alt="" width="36" height="36" /></div>'
-          + '<div class="slack__body">'
-          + '<div class="slack__meta"><span class="slack__name">plusplus</span>'
-          + '<span class="slack__badge">APP</span><span class="slack__time">Just now</span></div>'
-          + '<div class="slack__text">' + html + '</div></div>';
-        feed.appendChild(msg);
-        toBottom();
-        return msg.querySelector('.slack__text');
+        return '<div class="slack__avatar"><img src="' + author.img + '" alt="" width="36" height="36" /></div>';
       }
 
       function fillLine(line, segments) {
@@ -322,20 +302,65 @@
         });
       }
 
-      function typeLine(line, segments, done) {
+      function addUserMsg(author, time, segments) {
+        var msg = document.createElement('div');
+        msg.className = 'slack__msg';
+        msg.innerHTML = avatarHTML(author)
+          + '<div class="slack__body">'
+          + '<div class="slack__meta"><span class="slack__name">' + author.name + '</span>'
+          + '<span class="slack__time">' + time.replace(' ', '&#8239;') + '</span></div>'
+          + '<div class="slack__text"></div></div>';
+        fillLine(msg.querySelector('.slack__text'), segments);
+        feed.appendChild(msg);
+        toBottom();
+      }
+
+      function addBotMsg(html) {
+        var msg = document.createElement('div');
+        msg.className = 'slack__msg';
+        msg.innerHTML = '<div class="slack__avatar slack__avatar--bot">'
+          + '<img src="plusplus-icon.png" alt="" width="36" height="36" /></div>'
+          + '<div class="slack__body">'
+          + '<div class="slack__meta"><span class="slack__name">plusplus</span>'
+          + '<span class="slack__badge">APP</span><span class="slack__time">Just now</span></div>'
+          + '<div class="slack__text">' + html + '</div></div>';
+        feed.appendChild(msg);
+        toBottom();
+        return msg.querySelector('.slack__text');
+      }
+
+      // The score ticks over to its new total instead of just appearing.
+      function tickTotals(root) {
+        if (prefersReduced) return;
+        root.querySelectorAll('.slack__total').forEach(function (el) {
+          var from = +el.getAttribute('data-from'), to = +el.textContent, steps = 14;
+          el.textContent = from;
+          for (var s = 0; s <= steps; s++) {
+            (function (s) {
+              after(s * 40, function () {
+                var t = 1 - Math.pow(1 - s / steps, 3);
+                el.textContent = Math.round(from + (to - from) * t);
+              });
+            })(s);
+          }
+        });
+      }
+
+      function typeIntoComposer(segments, done) {
+        composer.classList.add('slack__composer--active');
+        draft.textContent = '';
         var si = 0;
         (function typeSeg() {
           if (si >= segments.length) { done(); return; }
           var seg = segments[si++];
           var span = document.createElement('span');
           if (seg.cls) span.className = seg.cls;
-          line.appendChild(span);
+          draft.appendChild(span);
           var ci = 0;
           (function typeChar() {
             if (ci < seg.text.length) {
               span.textContent += seg.text[ci++];
-              toBottom();
-              after(85, typeChar);
+              after(70 + Math.random() * 40, typeChar);
               return;
             }
             typeSeg();
@@ -343,20 +368,28 @@
         })();
       }
 
+      function resetComposer() {
+        draft.textContent = '';
+        composer.classList.remove('slack__composer--active');
+      }
+
       function playMessages(messages, mi, done) {
         if (mi >= messages.length) { done(); return; }
         var m = messages[mi];
-        var u = addUserMsg(m.author, m.time, true);
-        typeLine(u.line, m.segments, function () {
-          after(520, function () {
-            if (u.cursor) u.cursor.remove();
-            var bot = addBotMsg(typingDots);
-            after(1450, function () {
-              bot.innerHTML = m.reply;
-              toBottom();
-              var last = mi === messages.length - 1;
-              after(last ? 2600 : 1000, function () {
-                playMessages(messages, mi + 1, done);
+        typeIntoComposer(m.segments, function () {
+          after(380, function () {
+            resetComposer();
+            addUserMsg(m.author, m.time, m.segments);
+            after(600, function () {
+              var text = addBotMsg(typingDots);
+              after(1200, function () {
+                text.innerHTML = m.reply;
+                tickTotals(text);
+                toBottom();
+                var last = mi === messages.length - 1;
+                after(last ? 3000 : 1100, function () {
+                  playMessages(messages, mi + 1, done);
+                });
               });
             });
           });
@@ -365,8 +398,7 @@
 
       function renderStatic(scene) {
         scene.messages.forEach(function (m) {
-          var u = addUserMsg(m.author, m.time, false);
-          fillLine(u.line, m.segments);
+          addUserMsg(m.author, m.time, m.segments);
           addBotMsg(m.reply);
         });
         toBottom();
@@ -375,23 +407,32 @@
       function jump(i) {
         idx = i;
         clearTimers();
+        resetComposer();
         feed.innerHTML = '';
-        dots.forEach(function (d, j) { d.classList.toggle('slack__dot--active', j === idx); });
+        tabs.forEach(function (t, j) { t.setAttribute('aria-current', j === idx ? 'true' : 'false'); });
         var scene = scenes[idx];
         if (prefersReduced) { renderStatic(scene); return; }
+        running = true;
         playMessages(scene.messages, 0, function () {
           jump((idx + 1) % scenes.length);
         });
       }
 
-      var started = false;
-      var io = new IntersectionObserver(function (entries) {
-        if (entries[0].isIntersecting && !started) {
-          started = true;
-          jump(0);
-        }
-      }, { threshold: 0.4 });
-      io.observe(demo);
+      function stop() { clearTimers(); running = false; }
+
+      // Play only while the demo is on screen and the tab is visible.
+      var inView = false;
+      function sync() {
+        var shouldRun = inView && !document.hidden;
+        if (shouldRun && !running) jump(idx);
+        else if (!shouldRun && running) stop();
+      }
+      new IntersectionObserver(function (entries) {
+        inView = entries[0].isIntersecting;
+        sync();
+      }, { threshold: 0.4 }).observe(demo);
+      document.addEventListener('visibilitychange', sync);
+      if (prefersReduced) jump(0);
     })();
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
