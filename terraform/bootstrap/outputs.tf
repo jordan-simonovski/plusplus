@@ -8,6 +8,11 @@ output "ci_role_arn" {
   value       = aws_iam_role.ci.arn
 }
 
+output "ci_plan_role_arn" {
+  description = "Read-only IAM role ARN for pull-request plans. Set as the AWS_PLAN_ROLE_ARN repo variable."
+  value       = aws_iam_role.ci_plan.arn
+}
+
 output "runtime_user_name" {
   description = "IAM user for the Railway runtime. Create an access key for it."
   value       = aws_iam_user.runtime.name
