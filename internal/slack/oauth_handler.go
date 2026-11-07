@@ -108,25 +108,29 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	state := r.FormValue("state")
-	if state == "" {
-		// Slack's generic install button sends no state. Restart the flow through our
-		// install endpoint, which mints a signed state. The attacker-supplied code (if any)
-		// is discarded unexchanged, so CSRF protection holds.
+	code := r.FormValue("code")
+	redirectURI := h.redirectURI(r)
+
+	switch {
+	case state == "" && code == "":
 		http.Redirect(w, r, h.installURL(r), http.StatusFound)
 		return
-	}
-	if !verifySignedOAuthState(h.stateSecret, state) {
+	case state == "":
+		// Installs started on Slack's side (Marketplace button, shareable URL, app settings)
+		// carry no state. Exchange the code directly so the user does a single OAuth pass:
+		// there is no user session to bind, so the worst a forged callback can do is install
+		// the bot into the forger's own workspace. Those flows send no redirect_uri, so the
+		// exchange must omit it too.
+		redirectURI = ""
+	case !verifySignedOAuthState(h.stateSecret, state):
 		http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 		return
-	}
-
-	code := r.FormValue("code")
-	if code == "" {
+	case code == "":
 		http.Error(w, "missing code", http.StatusBadRequest)
 		return
 	}
 
-	teamID, token, err := h.exchangeCode(r.Context(), code, h.redirectURI(r))
+	teamID, token, err := h.exchangeCode(r.Context(), code, redirectURI)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -156,7 +160,9 @@ func (h *OAuthHandler) exchangeCode(ctx context.Context, code, redirectURI strin
 	form.Set("client_id", h.clientID)
 	form.Set("client_secret", h.clientSecret)
 	form.Set("code", code)
-	form.Set("redirect_uri", redirectURI)
+	if redirectURI != "" {
+		form.Set("redirect_uri", redirectURI)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://slack.com/api/oauth.v2.access", strings.NewReader(form.Encode()))
 	if err != nil {
