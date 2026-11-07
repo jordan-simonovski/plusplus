@@ -91,6 +91,7 @@ Enable the `/slack/install` flow so others can install your instance. Setting
 | `SLACK_CLIENT_SECRET`  | **yes**                 | From the same page. Validated at startup.                                                  |
 | `PUBLIC_BASE_URL`      | **yes**                 | e.g. `https://karma.example.com`. Pins the OAuth `redirect_uri` to a trusted origin. Must exactly match the redirect URL registered in the Slack app. |
 | `TOKEN_ENCRYPTION_KEY` | **yes**                 | Base64-encoded 32-byte AES key; encrypts stored bot tokens. Generate with `openssl rand -base64 32`. |
+| `SLACK_OAUTH_SCOPES`   | no                      | Comma-separated bot scopes `/slack/install` requests. Defaults to the Marketplace set (no `*:history`); add `channels:history,groups:history` for plain `@someone ++`. |
 
 The app **fails to start** if `SLACK_CLIENT_ID` is set without
 `SLACK_CLIENT_SECRET`, `PUBLIC_BASE_URL`, or a valid `TOKEN_ENCRYPTION_KEY`.
@@ -240,9 +241,40 @@ Point your Slack app at your instance's public URL:
 - `/plusplus-settings` command URL: `https://<your-host>/slack/commands`
 - OAuth redirect URL (OAuth mode only): `https://<your-host>/slack/oauth/callback`
 
-Required bot scopes: `app_mentions:read`, `channels:history`, `groups:history`,
-`chat:write`, `commands`, `usergroups:read`, `users:read`. See the main
-[README](../README.md#slack-app-setup-dev) for the full Slack app walkthrough.
+The quickest setup is to create the app from
+[`slack-app-manifest.self-hosted.yaml`](../slack-app-manifest.self-hosted.yaml)
+(replace `<your-host>`). Bot scopes: `app_mentions:read`, `channels:history`,
+`groups:history`, `chat:write`, `commands`, `reactions:read`, `usergroups:read`,
+`users:read`; events: `app_mention`, `message.channels`, `message.groups`,
+`reaction_added`, `reaction_removed`.
+
+- `channels:history` / `groups:history` + `message.*` events give plain `@someone ++`
+  karma. Leave them out for reactions and `@plusplus @someone ++` only.
+- `reactions:read` + `reaction_*` events give emoji reaction karma.
+- In OAuth mode, set `SLACK_OAUTH_SCOPES` to the same comma-separated scope list.
+  It defaults to the Marketplace set, which has no `*:history` scopes.
+
+See the main [README](../README.md#slack-app-setup-dev) for the full Slack app walkthrough.
+
+---
+
+## Upgrading to reaction karma
+
+Reaction karma needs a new scope and two new events, and the default OAuth scope
+list no longer includes the history scopes. When you upgrade an existing instance:
+
+1. In your Slack app, add the `reactions:read` scope and subscribe to the
+   `reaction_added` and `reaction_removed` bot events (or re-apply
+   [`slack-app-manifest.self-hosted.yaml`](../slack-app-manifest.self-hosted.yaml)).
+2. **OAuth mode:** set `SLACK_OAUTH_SCOPES` to your full scope list. Without it,
+   new installs request the Marketplace set, which has no `*:history` scopes, so
+   plain `@someone ++` stops working for them. The server logs the scopes it
+   requests at startup.
+3. Reinstall the app in each workspace (or re-run `/slack/install`) so the bot
+   token picks up `reactions:read`. Until then, reactions do nothing.
+
+Plain `@someone ++` keeps working for existing installs that still have the
+history scopes and `message.*` events.
 
 ---
 
@@ -251,3 +283,4 @@ Required bot scopes: `app_mentions:read`, `channels:history`, `groups:history`,
 1. `curl https://<your-host>/healthz` → `{"status":"ok",...}`.
 2. Run `/plusplus-leaderboard` in Slack and confirm a response.
 3. In a channel with the bot, send `@someone +++` and confirm karma persists.
+4. React to someone's message with 🔥 and confirm a threaded "gained 4 karma" reply.

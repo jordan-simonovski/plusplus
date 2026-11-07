@@ -18,6 +18,8 @@ type Config struct {
 	SlackClientID     string
 	SlackClientSecret string
 	PublicBaseURL     string
+	// SlackOAuthScopes overrides the bot scopes /slack/install requests (comma-separated).
+	SlackOAuthScopes string
 
 	// WorkspaceEncryptor is set when SLACK_CLIENT_ID is configured (OAuth install + encrypted tokens).
 	WorkspaceEncryptor *crypto.AESEncryptor
@@ -45,6 +47,7 @@ func Load() (Config, error) {
 		SlackClientID:      os.Getenv("SLACK_CLIENT_ID"),
 		SlackClientSecret:  os.Getenv("SLACK_CLIENT_SECRET"),
 		PublicBaseURL:      os.Getenv("PUBLIC_BASE_URL"),
+		SlackOAuthScopes:   os.Getenv("SLACK_OAUTH_SCOPES"),
 		AWSRegion:          getenvDefault("AWS_REGION", "ap-southeast-2"),
 		DynamoDBEndpoint:   os.Getenv("DYNAMODB_ENDPOINT"),
 		KarmaTable:         getenvDefault("DYNAMODB_KARMA_TABLE", "plusplus_karma"),

@@ -1,0 +1,53 @@
+# Slack app manifest for a self-hosted PlusPlus.
+# Replace <your-host> with your instance's public URL. Compared with the
+# Marketplace manifest (slack-app-manifest.yaml) this adds channels:history,
+# groups:history and the message.* events so plain `@sam ++` works without
+# mentioning the bot. In OAuth mode, also set:
+#   SLACK_OAUTH_SCOPES=app_mentions:read,channels:history,chat:write,commands,groups:history,reactions:read,usergroups:read,users:read
+display_information:
+  name: PlusPlus Karma
+  description: Slack karma bot for plus/minus awards and leaderboard tracking.
+  background_color: "#1f2937"
+features:
+  bot_user:
+    display_name: plusplus
+    always_online: true
+  slash_commands:
+    - command: /plusplus-leaderboard
+      url: https://<your-host>/slack/commands
+      description: Show the all-time karma leaderboard.
+      usage_hint: help
+      should_escape: false
+    - command: /plusplus-settings
+      url: https://<your-host>/slack/commands
+      description: Configure channel settings for PlusPlus.
+      usage_hint: "[reply_mode thread|channel] [snark 1-10] [emoji] [help]"
+      should_escape: false
+oauth_config:
+  redirect_urls:
+    - https://<your-host>/slack/oauth/callback
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - chat:write
+      - commands
+      - groups:history
+      - reactions:read
+      - usergroups:read
+      - users:read
+settings:
+  event_subscriptions:
+    request_url: https://<your-host>/slack/events
+    bot_events:
+      - app_mention
+      - message.channels
+      - message.groups
+      - reaction_added
+      - reaction_removed
+  interactivity:
+    is_enabled: true
+    request_url: https://<your-host>/slack/interactions
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

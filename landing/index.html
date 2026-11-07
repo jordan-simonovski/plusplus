@@ -42,7 +42,7 @@
     <div class="hero__inner">
       <h1 class="hero__title">Karma for your Slack,<br /><span class="accent">made simple.</span></h1>
       <p class="hero__subtitle">
-        Mention a teammate with <code>++</code> to award points and <code>--</code> to dock them.
+        React to a teammate's message with 🔥 to award points, or type <code>@plusplus @sam ++</code>.
         PlusPlus keeps score, runs the leaderboard, and shuts down the karma farmers with a little snark.
       </p>
       <div class="hero__cta" data-install>
@@ -66,22 +66,27 @@
   <main>
     <section class="section" id="how">
       <h2 class="section__title">How it works</h2>
-      <p class="section__lead">No setup, no syntax to memorize. Just talk like you already do.</p>
+      <p class="section__lead">No setup, no syntax to memorize. React or type like you already do.</p>
       <ol class="rules">
         <li class="rule">
-          <span class="rule__glyph rule__glyph--plus" aria-hidden="true">++</span>
-          <h3 class="rule__title">Award karma</h3>
-          <p>Mention someone followed by a run of pluses — <code>@sam ++</code>. Two pluses is the minimum. Longer runs give more, up to a cap.</p>
+          <span class="rule__glyph rule__glyph--plus" aria-hidden="true">🔥</span>
+          <h3 class="rule__title">React to award</h3>
+          <p>React to someone's message and they get karma. Stronger emojis give more: 👏&nbsp;+1, 🙌&nbsp;+2, ⭐&nbsp;+3, 🔥&nbsp;+4, 🏆&nbsp;+5. Changed your mind? Remove the reaction and the karma goes back.</p>
         </li>
         <li class="rule">
-          <span class="rule__glyph rule__glyph--minus" aria-hidden="true">--</span>
-          <h3 class="rule__title">Dock karma</h3>
-          <p>Same idea in reverse — <code>@sam --</code>. iOS turning <code>--</code> into an em dash? Handled. <code>@sam —</code> still counts.</p>
+          <span class="rule__glyph rule__glyph--minus" aria-hidden="true">🗑️</span>
+          <h3 class="rule__title">React to dock</h3>
+          <p>Same idea in reverse: 🙄&nbsp;−1, 👎&nbsp;−2, 🤡&nbsp;−3, 💩&nbsp;−4, 🗑️&nbsp;−5. Every channel can swap in its own emojis, so in-jokes become karma too.</p>
+        </li>
+        <li class="rule">
+          <span class="rule__glyph rule__glyph--plus" aria-hidden="true">++</span>
+          <h3 class="rule__title">Or type it</h3>
+          <p>Mention the bot and a teammate with a run of pluses: <code>@plusplus @sam ++</code>. Longer runs give more, and <code>--</code> docks. iOS turning <code>--</code> into an em dash? Handled.</p>
         </li>
         <li class="rule">
           <span class="rule__glyph rule__glyph--cap" aria-hidden="true">±5</span>
           <h3 class="rule__title">Capped &amp; fair</h3>
-          <p>Each hit moves the needle by at most ±5, so nobody mints a fortune with one giant <code>+++++++++</code>. Self-awards are denied.</p>
+          <p>Only your strongest reaction on a message counts, and every hit moves the needle by at most ±5, so nobody mints a fortune by stacking emojis or typing <code>+++++++++</code>. Self-awards are denied.</p>
         </li>
       </ol>
     </section>
@@ -95,11 +100,11 @@
         </div>
         <div class="feature">
           <h3 class="feature__title">Per-channel settings</h3>
-          <p>Decide whether the bot replies in-channel or in a thread with <code class="code--long">/plusplus-settings reply_mode thread|channel</code>.</p>
+          <p>Choose whether the bot replies in-channel or in a thread, and how much snark it brings, from dry to fully unhinged. Run <code>/plusplus-settings</code> in any channel.</p>
         </div>
         <div class="feature">
-          <h3 class="feature__title">Adjustable snark</h3>
-          <p>Ten levels of personality, from dry and quiet to fully unhinged. Tune how loud the bot gets.</p>
+          <h3 class="feature__title">Your emojis, your jokes</h3>
+          <p>Use your own emojis, custom ones included, for the whole workspace or just one channel with <code>/plusplus-settings emoji</code>.</p>
         </div>
         <div class="feature">
           <h3 class="feature__title">Group karma</h3>
@@ -120,8 +125,12 @@
       <h2 class="section__title">Commands</h2>
       <div class="commands">
         <div class="command">
-          <code class="command__name">@user ++ / @user --</code>
-          <span class="command__desc">Award or dock karma. Min 2 symbols, capped at ±5 per message.</span>
+          <code class="command__name">👏 🙌 ⭐ 🔥 🏆 / 🙄 👎 🤡 💩 🗑️</code>
+          <span class="command__desc">React to a message to give or take 1–5 karma. Your strongest reaction counts.</span>
+        </div>
+        <div class="command">
+          <code class="command__name">@plusplus @user ++ / --</code>
+          <span class="command__desc">Award or dock karma by typing. Min 2 symbols, capped at ±5 per message.</span>
         </div>
         <div class="command">
           <code class="command__name">/plusplus-leaderboard</code>
@@ -130,6 +139,10 @@
         <div class="command">
           <code class="command__name">/plusplus-settings reply_mode thread|channel</code>
           <span class="command__desc">Configure where the bot posts its replies.</span>
+        </div>
+        <div class="command">
+          <code class="command__name">/plusplus-settings emoji [workspace] &lt;tier&gt; :emoji:</code>
+          <span class="command__desc">Use your own emoji for a tier (−5 to 5) in this channel. Workspace admins can add <code>workspace</code> to change it everywhere.</span>
         </div>
       </div>
     </section>
@@ -208,12 +221,26 @@
       }
       function snark(text) { return '<span class="slack__line"><em>' + text + '</em></span>'; }
 
+      // A reaction scene posts the message, then each reaction lands on it and
+      // plusplus answers in the message's thread (events_processor.go handleReaction).
+      // Only the strongest reaction counts, so 🏆 after 👏 adds the difference.
       var scenes = [
         {
-          label: 'Award',
+          label: 'React',
+          messages: [{
+            author: jez, time: '9:30 AM',
+            segments: [{ text: 'Fixed the flaky deploy. Pipeline is green again.' }],
+            reactions: [
+              { emoji: '👏', reply: applied('Jeremy Usborne', 'gained', 1, 6, 7) },
+              { emoji: '🏆', reply: applied('Jeremy Usborne', 'gained', 4, 7, 11) }
+            ]
+          }]
+        },
+        {
+          label: 'Type',
           messages: [{
             author: mark, time: '9:41 AM',
-            segments: [at('sophie'), sym('+', 5)],
+            segments: [at('plusplus'), { text: ' ' }, at('sophie'), sym('+', 5)],
             reply: applied('Sophie Chapman', 'gained', 4, 57, 61)
           }]
         },
@@ -222,17 +249,17 @@
           messages: [
             {
               author: mark, time: '9:42 AM',
-              segments: [at('jez'), sym('-', 3)],
+              segments: [at('plusplus'), { text: ' ' }, at('jez'), sym('-', 3)],
               reply: applied('Jeremy Usborne', 'lost', 2, 9, 7)
             },
             {
               author: jez, time: '9:42 AM',
-              segments: [at('mark'), sym('-', 4)],
+              segments: [at('plusplus'), { text: ' ' }, at('mark'), sym('-', 4)],
               reply: applied('Mark Corrigan', 'lost', 3, 17, 14) + snark('Tit, meet tat.')
             },
             {
               author: mark, time: '9:43 AM',
-              segments: [at('jez'), sym('-', 6)],
+              segments: [at('plusplus'), { text: ' ' }, at('jez'), sym('-', 6)],
               reply: applied('Jeremy Usborne', 'lost', 5, 7, 2) + snark('Settle down, you two.')
             }
           ]
@@ -241,7 +268,7 @@
           label: 'Group',
           messages: [{
             author: mark, time: '11:08 AM',
-            segments: [at('jlb-credit'), sym('+', 4)],
+            segments: [at('plusplus'), { text: ' ' }, at('jlb-credit'), sym('+', 4)],
             reply: applied('Alan Johnson', 'gained', 3, 46, 49)
               + applied('Dobby', 'gained', 3, 34, 37)
               + applied('Jeff Heaney', 'gained', 3, 15, 18)
@@ -251,7 +278,7 @@
           label: 'Capped',
           messages: [{
             author: jez, time: '2:17 PM',
-            segments: [at('superhans'), sym('+', 12)],
+            segments: [at('plusplus'), { text: ' ' }, at('superhans'), sym('+', 12)],
             reply: snark('Easy there, turbo. Nobody gets more than 5 karma per hit.')
               + snark('Buzzkill mode enabled: capped to 5 karma.')
               + applied('Super Hans', 'gained', 5, 57, 62)
@@ -313,9 +340,39 @@
         fillLine(msg.querySelector('.slack__text'), segments);
         feed.appendChild(msg);
         toBottom();
+        return msg;
       }
 
-      function addBotMsg(html) {
+      // Adds (or bumps) a reaction pill on a posted message.
+      function addReaction(msg, emoji) {
+        var body = msg.querySelector('.slack__body');
+        var row = body.querySelector('.slack__reactions');
+        if (!row) {
+          row = document.createElement('div');
+          row.className = 'slack__reactions';
+          body.appendChild(row);
+        }
+        var pill = document.createElement('span');
+        pill.className = 'slack__reaction slack__reaction--mine';
+        pill.innerHTML = emoji + ' <span>1</span>';
+        row.appendChild(pill);
+        toBottom();
+      }
+
+      // Thread under a message; plusplus replies there for reaction karma.
+      function threadOf(msg) {
+        var body = msg.querySelector('.slack__body');
+        var thread = body.querySelector('.slack__thread');
+        if (!thread) {
+          thread = document.createElement('div');
+          thread.className = 'slack__thread';
+          thread.innerHTML = '<div class="slack__thread-label">Thread</div>';
+          body.appendChild(thread);
+        }
+        return thread;
+      }
+
+      function addBotMsg(html, container) {
         var msg = document.createElement('div');
         msg.className = 'slack__msg';
         msg.innerHTML = '<div class="slack__avatar slack__avatar--bot">'
@@ -324,7 +381,7 @@
           + '<div class="slack__meta"><span class="slack__name">plusplus</span>'
           + '<span class="slack__badge">APP</span><span class="slack__time">Just now</span></div>'
           + '<div class="slack__text">' + html + '</div></div>';
-        feed.appendChild(msg);
+        (container || feed).appendChild(msg);
         toBottom();
         return msg.querySelector('.slack__text');
       }
@@ -379,7 +436,15 @@
         typeIntoComposer(m.segments, function () {
           after(380, function () {
             resetComposer();
-            addUserMsg(m.author, m.time, m.segments);
+            var posted = addUserMsg(m.author, m.time, m.segments);
+            if (m.reactions) {
+              after(900, function () {
+                playReactions(posted, m.reactions, 0, function () {
+                  after(3000, function () { playMessages(messages, mi + 1, done); });
+                });
+              });
+              return;
+            }
             after(600, function () {
               var text = addBotMsg(typingDots);
               after(1200, function () {
@@ -396,9 +461,31 @@
         });
       }
 
+      function playReactions(msg, reactions, ri, done) {
+        if (ri >= reactions.length) { done(); return; }
+        var r = reactions[ri];
+        addReaction(msg, r.emoji);
+        after(500, function () {
+          var text = addBotMsg(typingDots, threadOf(msg));
+          after(1000, function () {
+            text.innerHTML = r.reply;
+            tickTotals(text);
+            toBottom();
+            after(1400, function () { playReactions(msg, reactions, ri + 1, done); });
+          });
+        });
+      }
+
       function renderStatic(scene) {
         scene.messages.forEach(function (m) {
-          addUserMsg(m.author, m.time, m.segments);
+          var posted = addUserMsg(m.author, m.time, m.segments);
+          if (m.reactions) {
+            m.reactions.forEach(function (r) {
+              addReaction(posted, r.emoji);
+              addBotMsg(r.reply, threadOf(posted));
+            });
+            return;
+          }
           addBotMsg(m.reply);
         });
         toBottom();

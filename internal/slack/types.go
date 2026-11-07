@@ -13,12 +13,12 @@ type SlackAuthorization struct {
 }
 
 type EventEnvelope struct {
-	Type             string               `json:"type"`
-	Token            string               `json:"token,omitempty"`
-	Challenge        string               `json:"challenge,omitempty"`
-	TeamID           string               `json:"team_id,omitempty"`
-	Event            SlackEvent           `json:"event"`
-	Authorizations   []SlackAuthorization `json:"authorizations,omitempty"`
+	Type           string               `json:"type"`
+	Token          string               `json:"token,omitempty"`
+	Challenge      string               `json:"challenge,omitempty"`
+	TeamID         string               `json:"team_id,omitempty"`
+	Event          SlackEvent           `json:"event"`
+	Authorizations []SlackAuthorization `json:"authorizations,omitempty"`
 }
 
 type SlackEvent struct {
@@ -31,6 +31,17 @@ type SlackEvent struct {
 	BotID     string `json:"bot_id,omitempty"`
 	Subtype   string `json:"subtype,omitempty"`
 	ChannelID string `json:"channel_id,omitempty"`
+
+	// reaction_added / reaction_removed
+	Reaction string       `json:"reaction,omitempty"`
+	ItemUser string       `json:"item_user,omitempty"`
+	Item     ReactionItem `json:"item,omitempty"`
+}
+
+type ReactionItem struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	TS      string `json:"ts"`
 }
 
 type SlashCommandPayload struct {

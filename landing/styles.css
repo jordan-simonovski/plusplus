@@ -286,6 +286,43 @@ code {
 
 .slack__board { display: block; font-variant-numeric: tabular-nums; }
 
+/* Reaction pills under a message, as Slack draws them. */
+.slack__reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.slack__reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--slack-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--slack-muted);
+  font-variant-numeric: tabular-nums;
+  animation: slack-pop 0.36s var(--ease-out);
+}
+.slack__reaction--mine {
+  border-color: var(--slack-mention-fg);
+  background: var(--slack-mention-bg);
+  color: var(--slack-mention-fg);
+}
+
+/* plusplus answers reaction karma in the message's thread. */
+.slack__thread {
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--slack-line);
+}
+.slack__thread-label { font-size: 0.74rem; color: var(--slack-muted); }
+.slack__thread .slack__msg { padding: 4px 0; }
+.slack__thread .slack__avatar { width: 24px; height: 24px; border-radius: 6px; }
+
+@keyframes slack-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  70% { transform: scale(1.08); }
+}
+
 .slack__typing {
   display: inline-flex;
   align-items: center;
@@ -311,7 +348,7 @@ code {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .slack__msg { animation: none; }
+  .slack__msg, .slack__reaction { animation: none; }
 }
 
 /* ---------- Demo scene picker ---------- */
@@ -378,8 +415,8 @@ code {
   margin: 48px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 40px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px 56px;
 }
 .rule { border-top: 1px solid var(--border); padding-top: 24px; }
 .rule__glyph {

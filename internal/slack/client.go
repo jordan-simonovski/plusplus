@@ -131,6 +131,8 @@ type usersInfoResponse struct {
 	Error string `json:"error"`
 	User  struct {
 		RealName string `json:"real_name"`
+		IsAdmin  bool   `json:"is_admin"`
+		IsOwner  bool   `json:"is_owner"`
 		Profile  struct {
 			DisplayName string `json:"display_name"`
 			RealName    string `json:"real_name"`
@@ -141,40 +143,55 @@ type usersInfoResponse struct {
 // DisplayName calls users.info (requires users:read) and returns the best
 // available human name: display_name, then profile.real_name, then real_name.
 func (c *APIClient) DisplayName(ctx context.Context, userID string) (string, error) {
+	out, err := c.usersInfo(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if name := firstNonEmpty(out.User.Profile.DisplayName, out.User.Profile.RealName, out.User.RealName); name != "" {
+		return name, nil
+	}
+	return "", fmt.Errorf("slack users.info returned no name for %s", userID)
+}
+
+// IsWorkspaceAdmin reports whether the user is a workspace admin or owner (users:read).
+func (c *APIClient) IsWorkspaceAdmin(ctx context.Context, userID string) (bool, error) {
+	out, err := c.usersInfo(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return out.User.IsAdmin || out.User.IsOwner, nil
+}
+
+func (c *APIClient) usersInfo(ctx context.Context, userID string) (usersInfoResponse, error) {
 	form := url.Values{}
 	form.Set("user", userID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, usersInfoURL, bytes.NewReader([]byte(form.Encode())))
 	if err != nil {
-		return "", fmt.Errorf("create slack users.info request: %w", err)
+		return usersInfoResponse{}, fmt.Errorf("create slack users.info request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("send slack users.info request: %w", err)
+		return usersInfoResponse{}, fmt.Errorf("send slack users.info request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read slack users.info response: %w", err)
+		return usersInfoResponse{}, fmt.Errorf("read slack users.info response: %w", err)
 	}
 
 	var out usersInfoResponse
 	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("decode slack users.info response: %w", err)
+		return usersInfoResponse{}, fmt.Errorf("decode slack users.info response: %w", err)
 	}
-
 	if !out.OK {
-		return "", fmt.Errorf("slack users.info failed: %s", out.Error)
+		return usersInfoResponse{}, fmt.Errorf("slack users.info failed: %s", out.Error)
 	}
-
-	if name := firstNonEmpty(out.User.Profile.DisplayName, out.User.Profile.RealName, out.User.RealName); name != "" {
-		return name, nil
-	}
-	return "", fmt.Errorf("slack users.info returned no name for %s", userID)
+	return out, nil
 }
 
 func firstNonEmpty(values ...string) string {

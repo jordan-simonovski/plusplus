@@ -16,7 +16,10 @@ import (
 	"time"
 )
 
-const oauthScopes = "app_mentions:read,channels:history,chat:write,commands,groups:history,usergroups:read,users:read"
+// DefaultOAuthScopes is the Marketplace scope set: karma comes from @plusplus mentions and
+// emoji reactions, with no access to message history. Self-hosted installs that want plain
+// `@sam ++` karma add channels:history,groups:history via SLACK_OAUTH_SCOPES.
+const DefaultOAuthScopes = "app_mentions:read,chat:write,commands,reactions:read,usergroups:read,users:read"
 
 const oauthStateNonceLen = 16
 
@@ -37,14 +40,20 @@ type OAuthHandler struct {
 	clientSecret    string
 	redirectBaseURL string
 	stateSecret     string
+	scopes          string
 	installer       WorkspaceInstaller
 	httpClient      *http.Client
 }
 
 // NewOAuthHandler builds the OAuth flow. stateSecret should be a server-only value (e.g. SLACK_SIGNING_SECRET)
 // used to HMAC-sign the OAuth state parameter so CSRF does not rely on cookies (fragile on cross-site redirects).
-func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller, stateSecret string) *OAuthHandler {
+// scopes is the comma-separated bot scope list; empty means DefaultOAuthScopes.
+func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller, stateSecret, scopes string) *OAuthHandler {
+	if scopes == "" {
+		scopes = DefaultOAuthScopes
+	}
 	return &OAuthHandler{
+		scopes:          scopes,
 		clientID:        clientID,
 		clientSecret:    clientSecret,
 		redirectBaseURL: strings.TrimRight(redirectBaseURL, "/"),
@@ -55,6 +64,9 @@ func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer W
 		},
 	}
 }
+
+// Scopes is the comma-separated bot scope list /slack/install requests.
+func (h *OAuthHandler) Scopes() string { return h.scopes }
 
 func (h *OAuthHandler) redirectURI(r *http.Request) string {
 	return h.baseURL(r) + "/slack/oauth/callback"
@@ -88,7 +100,7 @@ func (h *OAuthHandler) Install(w http.ResponseWriter, r *http.Request) {
 	// callbacks with state= (empty). Omit the parameter entirely.
 	q := url.Values{}
 	q.Set("client_id", h.clientID)
-	q.Set("scope", oauthScopes)
+	q.Set("scope", h.scopes)
 	q.Set("redirect_uri", h.redirectURI(r))
 	q.Set("state", state)
 

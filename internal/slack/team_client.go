@@ -74,3 +74,12 @@ func (c *TeamResolvingClient) DisplayName(ctx context.Context, teamID, userID st
 	}
 	return client.DisplayName(ctx, userID)
 }
+
+// IsWorkspaceAdmin implements WorkspaceAdminChecker.
+func (c *TeamResolvingClient) IsWorkspaceAdmin(ctx context.Context, teamID, userID string) (bool, error) {
+	client, err := c.apiClient(ctx, teamID)
+	if err != nil {
+		return false, err
+	}
+	return client.IsWorkspaceAdmin(ctx, userID)
+}
