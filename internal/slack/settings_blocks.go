@@ -6,7 +6,13 @@ import (
 	"plusplus/internal/domain"
 )
 
-func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{} {
+// maxSectionText is Slack's limit for a section block's text; one over it makes Slack
+// reject the whole message, so the panel would fail to open.
+const maxSectionText = 3000
+
+// settingsBlocks renders the interactive settings panel. emojiSummary (the channel's
+// karma reactions, from ReactionSettingsService.Describe) is shown when non-empty.
+func settingsBlocks(currentLevel int, appVersion string, emojiSummary string) []map[string]interface{} {
 	if currentLevel < domain.MinSnarkLevel || currentLevel > domain.MaxSnarkLevel {
 		currentLevel = domain.DefaultSnarkLevel
 	}
@@ -48,7 +54,7 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 		selectEl["initial_option"] = initialOption
 	}
 
-	return []map[string]interface{}{
+	blocks := []map[string]interface{}{
 		{
 			"type": "section",
 			"text": map[string]interface{}{
@@ -60,7 +66,21 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 			"type":     "actions",
 			"elements": []interface{}{selectEl},
 		},
-		{
+	}
+	if len(emojiSummary) > maxSectionText {
+		emojiSummary = "*Karma reactions*\nThis channel has a lot of karma emojis. Run `/plusplus-settings emoji` to see them all."
+	}
+	if emojiSummary != "" {
+		blocks = append(blocks,
+			map[string]interface{}{"type": "divider"},
+			map[string]interface{}{
+				"type": "section",
+				"text": map[string]interface{}{"type": "mrkdwn", "text": emojiSummary},
+			},
+		)
+	}
+	return append(blocks,
+		map[string]interface{}{
 			"type": "context",
 			"elements": []interface{}{
 				map[string]interface{}{
@@ -69,5 +89,5 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 				},
 			},
 		},
-	}
+	)
 }

@@ -367,3 +367,35 @@ func TestEmojiCommandBranchesAndErrors(t *testing.T) {
 		t.Fatalf("emoji without reaction support should show usage, got %s", out)
 	}
 }
+
+func TestSettingsPanelShowsKarmaReactions(t *testing.T) {
+	run := func(p *CommandsProcessor) string {
+		body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fplusplus-settings&text=")
+		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
+		addSignedHeaders(req, "secret", body)
+		rec := httptest.NewRecorder()
+		p.ProcessCommand(rec, req)
+		return rec.Body.String()
+	}
+	base := func() *CommandsProcessor {
+		return NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	}
+
+	withReactions := run(base().WithReactionSettings(NewReactionSettingsService(&memOverrides{channel: domain.TierOverrides{3: {"partyparrot"}}})))
+	for _, want := range []string{"snark_level_select", "Karma reactions", ":partyparrot:", ":trophy:", "/plusplus-settings emoji"} {
+		if !strings.Contains(withReactions, want) {
+			t.Fatalf("settings panel should include %q, got %s", want, withReactions)
+		}
+	}
+
+	broken := run(base().WithReactionSettings(NewReactionSettingsService(&failingGetOverrides{})))
+	if !strings.Contains(broken, "snark_level_select") || strings.Contains(broken, "Karma reactions") {
+		t.Fatalf("panel should still render without the emoji section when it can't load, got %s", broken)
+	}
+}
+
+type failingGetOverrides struct{ memOverrides }
+
+func (f *failingGetOverrides) GetReactionOverrides(context.Context, string, string) (domain.TierOverrides, domain.TierOverrides, error) {
+	return nil, nil, errors.New("dynamo down")
+}

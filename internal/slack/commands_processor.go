@@ -184,10 +184,18 @@ func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r 
 		return
 	}
 
+	// The emoji map is extra context; if it can't load, the panel still works without it.
+	var emojiSummary string
+	if p.reactions != nil {
+		if summary, err := p.reactions.Describe(r.Context(), payload.TeamID, payload.ChannelID); err == nil {
+			emojiSummary = summary
+		}
+	}
+
 	writeJSON(w, http.StatusOK, MessageResponse{
 		ResponseType: "ephemeral",
 		Text:         "Configure this channel's karma replies.",
-		Blocks:       settingsBlocks(current, p.version),
+		Blocks:       settingsBlocks(current, p.version, emojiSummary),
 	})
 }
 
