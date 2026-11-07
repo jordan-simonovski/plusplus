@@ -6,7 +6,9 @@ import (
 	"plusplus/internal/domain"
 )
 
-func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{} {
+// settingsBlocks renders the interactive settings panel. emojiSummary (the channel's
+// karma reactions, from ReactionSettingsService.Describe) is shown when non-empty.
+func settingsBlocks(currentLevel int, appVersion string, emojiSummary string) []map[string]interface{} {
 	if currentLevel < domain.MinSnarkLevel || currentLevel > domain.MaxSnarkLevel {
 		currentLevel = domain.DefaultSnarkLevel
 	}
@@ -48,7 +50,7 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 		selectEl["initial_option"] = initialOption
 	}
 
-	return []map[string]interface{}{
+	blocks := []map[string]interface{}{
 		{
 			"type": "section",
 			"text": map[string]interface{}{
@@ -60,7 +62,18 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 			"type":     "actions",
 			"elements": []interface{}{selectEl},
 		},
-		{
+	}
+	if emojiSummary != "" {
+		blocks = append(blocks,
+			map[string]interface{}{"type": "divider"},
+			map[string]interface{}{
+				"type": "section",
+				"text": map[string]interface{}{"type": "mrkdwn", "text": emojiSummary},
+			},
+		)
+	}
+	return append(blocks,
+		map[string]interface{}{
 			"type": "context",
 			"elements": []interface{}{
 				map[string]interface{}{
@@ -69,5 +82,5 @@ func settingsBlocks(currentLevel int, appVersion string) []map[string]interface{
 				},
 			},
 		},
-	}
+	)
 }

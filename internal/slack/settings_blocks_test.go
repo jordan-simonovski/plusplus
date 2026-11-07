@@ -3,7 +3,7 @@ package slack
 import "testing"
 
 func TestSettingsBlocksAppendsVersionContext(t *testing.T) {
-	blocks := settingsBlocks(5, "1.2.3")
+	blocks := settingsBlocks(5, "1.2.3", "")
 
 	last := blocks[len(blocks)-1]
 	if last["type"] != "context" {

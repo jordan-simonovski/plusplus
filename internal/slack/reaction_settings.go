@@ -78,8 +78,8 @@ func (s *ReactionSettingsService) Describe(ctx context.Context, teamID, channelI
 	if err != nil {
 		return "", err
 	}
-	return "*Karma reactions in this channel*\n" + domain.FormatReactionTiers(tiers) +
-		"\nChange one with `/plusplus-settings emoji <tier> :emoji:` (add `workspace` before the tier to change it everywhere).", nil
+	return "*Karma reactions*\nReact to a message to give or take karma:\n" + domain.FormatReactionTiers(tiers) +
+		"\nUse your own with `/plusplus-settings emoji <tier> :emoji:`. Workspace admins can add `workspace` before the tier to change it everywhere.", nil
 }
 
 // SetTier points a tier at new emojis for the channel (or workspace). The emojis are
