@@ -6,6 +6,10 @@ import (
 	"plusplus/internal/domain"
 )
 
+// maxSectionText is Slack's limit for a section block's text; one over it makes Slack
+// reject the whole message, so the panel would fail to open.
+const maxSectionText = 3000
+
 // settingsBlocks renders the interactive settings panel. emojiSummary (the channel's
 // karma reactions, from ReactionSettingsService.Describe) is shown when non-empty.
 func settingsBlocks(currentLevel int, appVersion string, emojiSummary string) []map[string]interface{} {
@@ -62,6 +66,9 @@ func settingsBlocks(currentLevel int, appVersion string, emojiSummary string) []
 			"type":     "actions",
 			"elements": []interface{}{selectEl},
 		},
+	}
+	if len(emojiSummary) > maxSectionText {
+		emojiSummary = "*Karma reactions*\nThis channel has a lot of karma emojis. Run `/plusplus-settings emoji` to see them all."
 	}
 	if emojiSummary != "" {
 		blocks = append(blocks,
