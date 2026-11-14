@@ -74,6 +74,19 @@ func TestDynamoReactionStoreAndOverridesIntegration(t *testing.T) {
 		}
 	}
 
+	if _, ok, err := store.KarmaTargets(ctx, team, "C1", ts); err != nil || ok {
+		t.Fatalf("unrecorded message should report no targets: ok=%v err=%v", ok, err)
+	}
+	for _, want := range [][]string{{"U2", "U3"}, {}} {
+		if err := store.RecordKarmaTargets(ctx, team, "C1", ts, want); err != nil {
+			t.Fatal(err)
+		}
+		got, ok, err := store.KarmaTargets(ctx, team, "C1", ts)
+		if err != nil || !ok || strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("karma targets = %v ok=%v err=%v, want %v", got, ok, err, want)
+		}
+	}
+
 	board, err := NewDynamoKarmaRepository(client, cfg.KarmaTable).GetLeaderboard(ctx, team, 10)
 	if err != nil {
 		t.Fatalf("leaderboard: %v", err)

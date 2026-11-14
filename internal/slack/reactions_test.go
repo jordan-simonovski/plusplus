@@ -42,6 +42,27 @@ func (m memReactionState) RemoveReaction(_ context.Context, _, ch, ts, who, emoj
 	return before, nil
 }
 
+// Karma message targets live under their own key; the int is the target's position.
+func (m memReactionState) RecordKarmaTargets(_ context.Context, _, ch, ts string, targets []string) error {
+	m["#km#"+ch+ts] = map[string]int{}
+	for i, t := range targets {
+		m["#km#"+ch+ts][t] = i
+	}
+	return nil
+}
+
+func (m memReactionState) KarmaTargets(_ context.Context, _, ch, ts string) ([]string, bool, error) {
+	row, ok := m["#km#"+ch+ts]
+	if !ok {
+		return nil, false, nil
+	}
+	targets := make([]string, len(row))
+	for t, i := range row {
+		targets[i] = t
+	}
+	return targets, true, nil
+}
+
 type deltaRecorder struct {
 	runs    *[]string
 	skipWar *[]bool
@@ -131,6 +152,53 @@ func TestReactionKarmaHighestTierAndUndo(t *testing.T) {
 		if post.threadTS != "100.1" {
 			t.Fatalf("reply should thread on the reacted message, got %q", post.threadTS)
 		}
+	}
+}
+
+func TestReactionsOnTypedKarmaCreditTheMentionedPeople(t *testing.T) {
+	var runs []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+
+	post := func(ts, text string) {
+		body := []byte(`{"type":"event_callback","team_id":"T1",
+			"authorizations":[{"user_id":"UBOT","is_bot":true}],
+			"event":{"type":"app_mention","user":"U2","text":"<@UBOT> ` + text + `","channel":"C1","ts":"` + ts + `","event_ts":"` + ts + `"}}`)
+		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+		addSlackSignatureHeaders(req, "secret", body)
+		rec := httptest.NewRecorder()
+		p.ProcessEvent(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("post %q: status %d", text, rec.Code)
+		}
+	}
+	react := func(ts, reactor, emoji string) {
+		body := []byte(strings.Replace(string(reactionEvent("reaction_added", reactor, "U2", emoji)), `"ts":"100.1"`, `"ts":"`+ts+`"`, 1))
+		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+		addSlackSignatureHeaders(req, "secret", body)
+		rec := httptest.NewRecorder()
+		p.ProcessEvent(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("react %s: status %d", emoji, rec.Code)
+		}
+	}
+
+	post("100.1", "<@U3> -- <@U4> --") // U2 docks U3 and U4
+	post("100.2", "<!subteam^S1|@team> ++")
+	runs, web.posts = nil, nil
+
+	react("100.1", "U1", "fire")   // emojis keep their meaning: +4 to each mentioned person
+	react("100.1", "U3", "clap")   // a mentioned person can't credit themselves: U4 only
+	react("100.1", "U2", "trophy") // the poster reacting to their own message: ignored
+	react("100.2", "U1", "fire")   // user-group award: credits nobody
+	react("100.9", "U1", "clap")   // ordinary message: the author, as before
+
+	want := "U3 +++++,U4 +++++,U4 ++,U2 ++"
+	if got := strings.Join(runs, ","); got != want {
+		t.Fatalf("karma runs = %s, want %s", got, want)
+	}
+	if len(web.posts) != 3 || web.posts[0].text != "applied\napplied" {
+		t.Fatalf("expected one combined reply per award, got %+v", web.posts)
 	}
 }
 

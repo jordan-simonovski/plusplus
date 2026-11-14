@@ -103,7 +103,7 @@ var usageText = fmt.Sprintf(
 		"• `/plusplus-settings` — interactive channel settings\n"+
 		"• `/plusplus-settings reply_mode thread|channel` — where the bot replies\n"+
 		"• `/plusplus-settings snark <%d–%d>` — how sassy the bot is\n"+
-		"• React to a message to give its author karma: 👏 +1, 🙌 +2, ⭐ +3, 🔥 +4, 🏆 +5 (🙄 👎 🤡 💩 🗑️ take 1–5 away)\n"+
+		"• React to a message to give its author karma: 👏 +1, 🙌 +2, ⭐ +3, 🔥 +4, 🏆 +5 (🙄 👎 🤡 💩 🗑️ take 1–5 away). On a `@plusplus @sam ++` message, sam gets it\n"+
 		"• `/plusplus-settings emoji` — see this channel's karma reactions\n"+
 		"• `/plusplus-settings emoji [workspace] <tier> :emoji:` — use your own emoji for a tier (-5 to 5); `workspace` is for admins\n"+
 		"• `/plusplus-settings emoji [workspace] reset` — go back to the defaults\n"+

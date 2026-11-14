@@ -36,9 +36,13 @@ type ReactionTierProvider interface {
 
 // ReactionStateStore records each reactor's tier emojis per message, with the tier
 // each was worth when added, and returns the emoji -> tier map as it was before.
+// It also remembers who each typed karma message credited, so reactions to
+// "@plusplus @sam ++" go to sam rather than the poster.
 type ReactionStateStore interface {
 	AddReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string, tier int) (map[string]int, error)
 	RemoveReaction(ctx context.Context, teamID, channelID, messageTS, reactorID, emoji string) (map[string]int, error)
+	RecordKarmaTargets(ctx context.Context, teamID, channelID, messageTS string, targets []string) error
+	KarmaTargets(ctx context.Context, teamID, channelID, messageTS string) (targets []string, ok bool, err error)
 }
 
 type EventsProcessor struct {
@@ -158,6 +162,20 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Recorded before any karma is applied, so failing here is safe for Slack to retry.
+	if p.reactionState != nil {
+		var targets []string
+		for _, seg := range segments {
+			if seg.Kind == parser.KarmaSegmentUser {
+				targets = append(targets, seg.UserID)
+			}
+		}
+		if err := p.reactionState.RecordKarmaTargets(r.Context(), envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
+			http.Error(w, "failed to record karma message", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	threadTS, snarkLevel := p.resolveChannelContext(r.Context(), envelope)
 
 	for _, seg := range segments {
@@ -213,6 +231,14 @@ func (p *EventsProcessor) resolveChannelContext(ctx context.Context, envelope Ev
 	}
 
 	return defaultThreadTS(envelope.Event), snarkLevel
+}
+
+// messageTS is the message's own ts, which is what reaction events reference.
+func messageTS(event SlackEvent) string {
+	if event.TS != "" {
+		return event.TS
+	}
+	return event.EventTS
 }
 
 func defaultThreadTS(event SlackEvent) string {
@@ -348,7 +374,8 @@ func isReactionEvent(eventType string) bool {
 	return eventType == "reaction_added" || eventType == "reaction_removed"
 }
 
-// handleReaction turns a tier emoji reaction into karma for the message author.
+// handleReaction turns a tier emoji reaction into karma for the message author, or,
+// on a typed karma message, for the people it credited (see reactionTargets).
 // Each reactor's award on a message is their strongest positive tier plus their
 // strongest negative tier; adding or removing a reaction applies the difference.
 // Tiers are stored per reaction when added, so removals undo exactly what was given
@@ -405,6 +432,15 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 		return nil
 	}
 
+	targets, err := p.reactionTargets(ctx, team, channel, ts, ev.ItemUser, reactor)
+	if err != nil {
+		p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
+		return err
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
 	snarkLevel := domain.DefaultSnarkLevel
 	if p.settings != nil {
 		if _, level, err := p.settings.GetChannelSettings(ctx, team, channel); err == nil {
@@ -416,29 +452,60 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 	if delta < 0 {
 		symbol = "-"
 	}
-	result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
-		TeamID:       team,
-		ActorUserID:  reactor,
-		TargetUserID: ev.ItemUser,
-		TargetHandle: "<@" + ev.ItemUser + ">",
-		SymbolRun:    strings.Repeat(symbol, abs(delta)+1), // a run of n+1 symbols moves karma by n
-		SnarkLevel:   snarkLevel,
-		SkipWar:      !added || domain.NetReactionTier(before) != 0,
-	})
-	if err != nil {
-		// Put the reaction state back so Slack's retry recomputes the same delta
-		// instead of seeing no change and dropping the karma.
-		p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
-		return err
+	var lines []string
+	for i, target := range targets {
+		result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
+			TeamID:       team,
+			ActorUserID:  reactor,
+			TargetUserID: target,
+			TargetHandle: "<@" + target + ">",
+			SymbolRun:    strings.Repeat(symbol, abs(delta)+1), // a run of n+1 symbols moves karma by n
+			SnarkLevel:   snarkLevel,
+			SkipWar:      !added || domain.NetReactionTier(before) != 0,
+		})
+		if err != nil {
+			if i > 0 {
+				// ponytail: earlier targets already have their karma, so a retry would
+				// double-credit them; the rest miss out. Per-target state if this bites.
+				log.Printf("reaction karma: stopped after %d of %d targets for team %s channel %s: %v", i, len(targets), team, channel, err)
+				break
+			}
+			// Put the reaction state back so Slack's retry recomputes the same delta
+			// instead of seeing no change and dropping the karma.
+			p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
+			return err
+		}
+		if result.Message != "" {
+			lines = append(lines, result.Message)
+		}
 	}
-	if !added || result.Message == "" {
+	if !added || len(lines) == 0 {
 		return nil
 	}
 	// Karma is applied; a retry couldn't post the reply anyway (it would see no change).
-	if err := p.webClient.PostMessage(ctx, team, channel, result.Message, ts); err != nil {
+	if err := p.webClient.PostMessage(ctx, team, channel, strings.Join(lines, "\n"), ts); err != nil {
 		log.Printf("reaction karma: reply failed for team %s channel %s: %v", team, channel, err)
 	}
 	return nil
+}
+
+// reactionTargets is who a reaction credits: the users a typed karma message
+// credited, otherwise the message's author. Nobody is credited by their own reaction.
+func (p *EventsProcessor) reactionTargets(ctx context.Context, team, channel, ts, author, reactor string) ([]string, error) {
+	targets, ok, err := p.reactionState.KarmaTargets(ctx, team, channel, ts)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return []string{author}, nil
+	}
+	out := make([]string, 0, len(targets))
+	for _, t := range targets {
+		if t != reactor {
+			out = append(out, t)
+		}
+	}
+	return out, nil
 }
 
 // restoreReaction sets emoji back to its state in before (best effort).

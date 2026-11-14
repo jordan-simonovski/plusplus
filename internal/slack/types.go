@@ -27,6 +27,7 @@ type SlackEvent struct {
 	Text      string `json:"text"`
 	Channel   string `json:"channel"`
 	ThreadTS  string `json:"thread_ts,omitempty"`
+	TS        string `json:"ts,omitempty"`
 	EventTS   string `json:"event_ts"`
 	BotID     string `json:"bot_id,omitempty"`
 	Subtype   string `json:"subtype,omitempty"`
