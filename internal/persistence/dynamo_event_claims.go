@@ -20,11 +20,6 @@ const eventClaimPrefix = "#evt#"
 // TTL on expires_at; without it the rows just accumulate.
 const eventClaimTTL = 24 * time.Hour
 
-const (
-	attrReleased  = "released"
-	attrExpiresAt = "expires_at"
-)
-
 // DynamoEventClaims records which Slack events have been processed so a retried delivery
 // is not applied twice. It uses only PutItem and UpdateItem, which the documented runtime
 // IAM policies already grant.

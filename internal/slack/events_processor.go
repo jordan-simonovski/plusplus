@@ -210,9 +210,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := p.reactionState.RecordKarmaTargets(ctx, envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
 			if claimed {
-				if rerr := p.events.ReleaseEvent(ctx, envelope.TeamID, envelope.EventID); rerr != nil {
-					log.Printf("events: could not release event %s for team %s: %v", envelope.EventID, envelope.TeamID, rerr)
-				}
+				p.releaseEvent(ctx, envelope)
 			}
 			http.Error(w, "failed to record karma message", http.StatusInternalServerError)
 			return
@@ -357,6 +355,11 @@ func (p *EventsProcessor) handleSubteamKarma(
 			GroupBroadcast: true,
 		})
 		if err != nil {
+			// Members already credited keep their karma (the claim stops a retry from
+			// re-applying it). Say so, or the user sees silence and retypes the award.
+			if len(lines) > 0 {
+				p.postBestEffort(ctx, envelope, strings.Join(append(lines, domain.GroupAwardStoppedNote), "\n"), threadTS)
+			}
 			return err
 		}
 		if result.Message != "" {
@@ -375,6 +378,27 @@ func (p *EventsProcessor) handleSubteamKarma(
 		lines = append(lines, warLine)
 	}
 	return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, strings.Join(lines, "\n"), threadTS)
+}
+
+// releaseEvent lets Slack's retry process the event again. It runs on a short context of
+// its own so it still works when the request's deadline is what failed; if it fails anyway
+// the event stays claimed (dropped, never doubled) and the failure is logged.
+func (p *EventsProcessor) releaseEvent(ctx context.Context, envelope EventEnvelope) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := p.events.ReleaseEvent(ctx, envelope.TeamID, envelope.EventID); err != nil {
+		log.Printf("events: could not release event %s for team %s: %v", envelope.EventID, envelope.TeamID, err)
+	}
+}
+
+// postBestEffort posts on a short context of its own, so a reply still goes out when the
+// request's deadline is what failed; errors are logged.
+func (p *EventsProcessor) postBestEffort(ctx context.Context, envelope EventEnvelope, text, threadTS string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, text, threadTS); err != nil {
+		log.Printf("events: could not post partial reply for team %s: %v", envelope.TeamID, err)
+	}
 }
 
 // groupAwardObserver is satisfied by *domain.KarmaService; other KarmaActionService

@@ -32,6 +32,8 @@ const (
 	attrBotToken     = "bot_token_ciphertext"
 	attrInstalledAt  = "installed_at"
 	attrRecentJSON   = "recent_json"
+	attrReleased     = "released"
+	attrExpiresAt    = "expires_at" // DynamoDB TTL attribute on the karma table
 
 	leaderboardIndex = "leaderboard"
 )

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"plusplus/internal/domain"
@@ -14,14 +15,18 @@ import (
 
 // memClaims is an in-memory EventClaimer.
 type memClaims struct {
-	held     map[string]bool
-	err      error
-	releases int
+	held       map[string]bool
+	err        error
+	releaseErr error
+	releases   int
 }
 
 func newMemClaims() *memClaims { return &memClaims{held: map[string]bool{}} }
 
-func (m *memClaims) ClaimEvent(_ context.Context, team, event string) (bool, error) {
+func (m *memClaims) ClaimEvent(ctx context.Context, team, event string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if m.err != nil {
 		return false, m.err
 	}
@@ -32,7 +37,13 @@ func (m *memClaims) ClaimEvent(_ context.Context, team, event string) (bool, err
 	return true, nil
 }
 
-func (m *memClaims) ReleaseEvent(_ context.Context, team, event string) error {
+func (m *memClaims) ReleaseEvent(ctx context.Context, team, event string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if m.releaseErr != nil {
+		return m.releaseErr
+	}
 	delete(m.held, team+"/"+event)
 	m.releases++
 	return nil
@@ -176,14 +187,75 @@ func TestTypedKarmaWithoutEventIDIsProcessed(t *testing.T) {
 	}
 }
 
-// Slack hangs up at three seconds; the work must not be cancelled with the request.
+// ctxWeb fails a post whose context is already done, like a real HTTP call would.
+type ctxWeb struct{ fakeWebClient }
+
+func (c *ctxWeb) PostMessage(ctx context.Context, team, channel, text, threadTS string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return c.fakeWebClient.PostMessage(ctx, team, channel, text, threadTS)
+}
+
+// Slack hangs up at three seconds; the claim, the karma and the reply must not be
+// cancelled with the request.
 func TestTypedKarmaSurvivesRequestCancellation(t *testing.T) {
 	var calls []string
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).WithEventClaims(newMemClaims())
+	web := &ctxWeb{}
+	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, web).WithEventClaims(newMemClaims())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if got := deliver(ctx, p, "Ev1", "<@U3> ++"); got != http.StatusOK {
-		t.Fatalf("status %d, want 200 (karma must not see the cancelled request context)", got)
+		t.Fatalf("status %d, want 200 (the work must not see the cancelled request context)", got)
+	}
+	if len(calls) != 1 || len(web.posts) != 1 {
+		t.Fatalf("calls %v, replies %d; want one of each", calls, len(web.posts))
+	}
+}
+
+// If the release itself fails the event stays claimed: dropped, never doubled.
+func TestTypedKarmaReleaseFailureKeepsClaim(t *testing.T) {
+	var calls []string
+	claims := newMemClaims()
+	claims.releaseErr = errors.New("dynamo down")
+	karma := countingKarma{calls: &calls}
+
+	failing := NewEventsProcessor("secret", karma, nil, nil, &fakeWebClient{}).
+		WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5).
+		WithEventClaims(claims)
+	if got := deliver(context.Background(), failing, "Ev1", "<@U3> ++"); got != http.StatusInternalServerError {
+		t.Fatalf("status %d, want the original 500", got)
+	}
+
+	healthy := NewEventsProcessor("secret", karma, nil, nil, &fakeWebClient{}).
+		WithReactions(defaultTiers{}, memReactionState{}, 5).
+		WithEventClaims(claims)
+	if got := deliver(context.Background(), healthy, "Ev1", "<@U3> ++"); got != http.StatusOK || len(calls) != 0 {
+		t.Fatalf("retry after failed release: status %d, calls %v; want 200 and nothing applied", got, calls)
+	}
+}
+
+// A user-group award that fails partway keeps the claim and tells the channel who was
+// credited, so nobody retypes it and doubles the first members' karma.
+func TestTypedKarmaGroupAwardFailingPartway(t *testing.T) {
+	var calls []string
+	web := &fakeWebClient{}
+	groups := &fakeUserGroupLister{ids: []string{"U3", "U4", "U5"}}
+	p := NewEventsProcessor("secret", countingKarma{calls: &calls, fail: map[string]bool{"U4": true}}, nil, groups, web).
+		WithEventClaims(newMemClaims())
+
+	if got := deliver(context.Background(), p, "Ev1", "<!subteam^S1|@team> ++"); got != http.StatusBadGateway {
+		t.Fatalf("first delivery: status %d, want 502", got)
+	}
+	if !reflect.DeepEqual(calls, []string{"U3", "U4"}) {
+		t.Fatalf("calls %v, want [U3 U4]", calls)
+	}
+	if len(web.posts) != 1 || !strings.Contains(web.posts[0].text, "applied") || !strings.HasSuffix(web.posts[0].text, domain.GroupAwardStoppedNote) {
+		t.Fatalf("replies %+v; want one listing the credited member and ending with the stopped note", web.posts)
+	}
+
+	if got := deliver(context.Background(), p, "Ev1", "<!subteam^S1|@team> ++"); got != http.StatusOK || len(calls) != 2 {
+		t.Fatalf("retry: status %d, calls %v; want 200 and nothing new applied", got, calls)
 	}
 }
