@@ -1,5 +1,6 @@
 services:
   dynamodb:
+    # Keep in step with the integration job in .github/workflows/go.yml.
     image: amazon/dynamodb-local:3.3.2
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:

@@ -84,8 +84,8 @@ func TestDynamoWorkspaceRepositoryIntegration(t *testing.T) {
 	}
 
 	otherKey := NewDynamoWorkspaceRepository(client, cfg.WorkspacesTable, testEncryptor(t, 100))
-	if got, err := otherKey.GetBotToken(ctx, team); err == nil || got != "" {
-		t.Fatalf("wrong key: got %q, %v; want an error and no token", got, err)
+	if got, err := otherKey.GetBotToken(ctx, team); err == nil || errors.Is(err, domain.ErrNotFound) || got != "" {
+		t.Fatalf("wrong key: got %q, %v; want a decryption error and no token", got, err)
 	}
 }
 
@@ -125,7 +125,7 @@ func TestDynamoInteractionStoreIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	corrupt, err := store.LoadRecent(ctx, team)
-	if err != nil || len(corrupt.Recent) != 0 {
+	if err != nil || len(corrupt.Recent) != 0 || len(corrupt.Cooldowns) != 0 {
 		t.Fatalf("corrupt blob: window = %+v, %v; want empty, no error", corrupt, err)
 	}
 }

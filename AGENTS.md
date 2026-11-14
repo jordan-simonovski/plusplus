@@ -15,7 +15,7 @@ make run                  # run the server against DynamoDB Local with dev secre
 ```
 
 Run `make check` before every commit; CI runs the same target on every pull request, plus
-`govulncheck`. It needs golangci-lint on your PATH, at the version pinned in
+`govulncheck` and the DynamoDB integration tests. It needs golangci-lint on your PATH, at the version pinned in
 `.github/workflows/go.yml` (`go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@<version>`). Run
 `make test-integration` whenever you touch `internal/persistence`, because the default
 test run does not exercise DynamoDB at all. It needs Docker; if Docker is not available,
