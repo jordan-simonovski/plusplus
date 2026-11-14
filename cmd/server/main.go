@@ -70,11 +70,16 @@ func main() {
 	reactionSettings := appslack.NewReactionSettingsService(settingsRepo).WithAdminCheck(slackClient)
 	reactionState := persistence.NewDynamoReactionStore(dynamoClient, cfg.KarmaTable)
 
+	events := appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient).
+		WithReactions(reactionSettings, reactionState, cfg.MaxKarmaPerAction).
+		WithEventClaims(persistence.NewDynamoEventClaims(dynamoClient, cfg.KarmaTable))
+	if workspaceRepo != nil {
+		events.WithInstallationRemover(workspaceRepo)
+	}
+
 	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
-		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient).
-			WithReactions(reactionSettings, reactionState, cfg.MaxKarmaPerAction).
-			WithEventClaims(persistence.NewDynamoEventClaims(dynamoClient, cfg.KarmaTable))),
+		transport.NewEventsHandler(events),
 		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, version.Version).
 			WithReactionSettings(reactionSettings)),
 		interactions,

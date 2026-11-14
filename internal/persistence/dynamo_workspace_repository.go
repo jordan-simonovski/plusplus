@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -73,4 +74,35 @@ func (r *DynamoWorkspaceRepository) GetBotToken(ctx context.Context, teamID stri
 		return "", fmt.Errorf("decrypt token: %w", err)
 	}
 	return string(pt), nil
+}
+
+// RemoveInstallation forgets a workspace's bot token when the app is uninstalled. The row
+// stays (installed_at is kept) but has no token, so GetBotToken reports ErrNotFound. An
+// unknown workspace is not an error and gets no row. Uses UpdateItem rather than
+// DeleteItem, which the documented runtime IAM policies do not grant.
+//
+// Only a token installed before the uninstall happened is removed. Slack can deliver
+// tokens_revoked late or retry app_uninstalled minutes later, and by then the workspace
+// may have reinstalled; that fresh token must survive.
+func (r *DynamoWorkspaceRepository) RemoveInstallation(ctx context.Context, teamID string, uninstalledAt time.Time) error {
+	_, err := r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(r.table),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: teamID},
+		},
+		UpdateExpression: aws.String("REMOVE #token"),
+		// installed_at is RFC3339 UTC to the second, so string order is time order. A
+		// reinstall in the same second as the uninstall keeps its token.
+		ConditionExpression:       aws.String("attribute_exists(#team) AND (attribute_not_exists(#installed) OR #installed < :uninstalled)"),
+		ExpressionAttributeNames:  map[string]string{"#token": attrBotToken, "#team": attrTeamID, "#installed": attrInstalledAt},
+		ExpressionAttributeValues: map[string]types.AttributeValue{":uninstalled": &types.AttributeValueMemberS{Value: uninstalledAt.UTC().Format(time.RFC3339)}},
+	})
+	var unknown *types.ConditionalCheckFailedException
+	if errors.As(err, &unknown) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("remove slack installation: %w", err)
+	}
+	return nil
 }
