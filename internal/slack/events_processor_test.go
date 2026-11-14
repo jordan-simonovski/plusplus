@@ -437,3 +437,13 @@ func TestEventsProcessorTooLargeGroupStillCreditsIndividuals(t *testing.T) {
 		t.Fatalf("posts %+v; want the too-large notice in the thread, then U9's reply", web.posts)
 	}
 }
+
+// Pins today's status for a karma failure inside a user-group award: 502 with the error as
+// the body (single-user failures are 500). Item 13's refactor must keep it.
+func TestEventsProcessorGroupKarmaFailureIs502(t *testing.T) {
+	var calls []string
+	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U001": true}}, nil, &fakeUserGroupLister{ids: groupMembers(3)}, &fakeWebClient{})
+	if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++"); got != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502", got)
+	}
+}
