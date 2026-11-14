@@ -39,7 +39,7 @@ landed:
 - **09** touches only `internal/crypto` and the workspace repository. Not alongside 06.
 - **19** touches only `terraform/dynamodb.tf`. Not alongside 03, which edits the same file.
 - **11** touches only CI and image configuration.
-- **10** adds new files and reorders `README.md`. Not alongside 05, 06 or 18, which also
+- **10** adds new files and reorders `README.md`. Not alongside 06 or 18, which also
   edit `README.md` or `docs/self-hosting.md`.
 
 Everything else shares `internal/slack/events_processor.go`, `cmd/server/main.go` or the
