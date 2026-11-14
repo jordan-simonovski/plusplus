@@ -91,9 +91,25 @@ func mustOAuthHandler(h *OAuthHandler, err error) *OAuthHandler {
 	return h
 }
 
-func TestNewOAuthHandlerRequiresABaseURL(t *testing.T) {
-	if _, err := NewOAuthHandler("client-id", "client-secret", "", nil, "state-secret", ""); err == nil {
-		t.Fatal("want an error without a public base URL")
+func TestNewOAuthHandlerRequiresAnAbsoluteBaseURL(t *testing.T) {
+	for _, base := range []string{"", "/", "example.com", "https://"} {
+		if _, err := NewOAuthHandler("client-id", "client-secret", base, nil, "state-secret", ""); err == nil {
+			t.Errorf("base URL %q: want an error", base)
+		}
+	}
+}
+
+// Slack rejects any redirect_uri that differs from the app's configured one.
+func TestInstallSendsTheConfiguredRedirectURI(t *testing.T) {
+	h := mustOAuthHandler(NewOAuthHandler("client-id", "client-secret", "https://example.com/", nil, "state-secret", ""))
+	w := httptest.NewRecorder()
+	h.Install(w, httptest.NewRequest(http.MethodGet, "/slack/install", nil))
+	loc, err := url.Parse(w.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loc.Query().Get("redirect_uri"); got != "https://example.com/slack/oauth/callback" {
+		t.Fatalf("redirect_uri = %q", got)
 	}
 }
 

@@ -57,8 +57,9 @@ type OAuthHandler struct {
 // (fragile on cross-site redirects). scopes is the comma-separated bot scope list; empty
 // means DefaultOAuthScopes.
 func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller, stateSecret, scopes string) (*OAuthHandler, error) {
-	if redirectBaseURL == "" {
-		return nil, fmt.Errorf("oauth: a public base URL is required for the redirect_uri")
+	base := strings.TrimRight(redirectBaseURL, "/")
+	if u, err := url.Parse(base); err != nil || u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("oauth: PUBLIC_BASE_URL must be an absolute URL like https://example.com, got %q", redirectBaseURL)
 	}
 	if scopes == "" {
 		scopes = DefaultOAuthScopes
@@ -67,7 +68,7 @@ func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer W
 		scopes:          scopes,
 		clientID:        clientID,
 		clientSecret:    clientSecret,
-		redirectBaseURL: strings.TrimRight(redirectBaseURL, "/"),
+		redirectBaseURL: base,
 		stateKey:        deriveStateKey(stateSecret),
 		installer:       installer,
 		httpClient: &http.Client{
