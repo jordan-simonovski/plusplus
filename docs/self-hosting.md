@@ -267,8 +267,10 @@ The quickest setup is to create the app from
 (replace `<your-host>`). Bot scopes: `app_mentions:read`, `channels:history`,
 `groups:history`, `chat:write`, `commands`, `reactions:read`, `usergroups:read`,
 `users:read`; events: `app_mention`, `message.channels`, `message.groups`,
-`reaction_added`, `reaction_removed`.
+`reaction_added`, `reaction_removed`, `app_uninstalled`, `tokens_revoked`.
 
+- `app_uninstalled` + `tokens_revoked` (no scope needed) let OAuth mode delete a
+  workspace's stored token when it removes the app.
 - `channels:history` / `groups:history` + `message.*` events give plain `@someone ++`
   karma. Leave them out for reactions and `@plusplus @someone ++` only. Slack only
   sends a bot the messages from channels it's a member of, so plain `@someone ++`

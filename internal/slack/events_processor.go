@@ -47,7 +47,8 @@ type ReactionStateStore interface {
 
 // InstallationRemover forgets a workspace's bot token when the app is uninstalled.
 type InstallationRemover interface {
-	RemoveInstallation(ctx context.Context, teamID string) error
+	// RemoveInstallation removes the token only if it was installed before uninstalledAt.
+	RemoveInstallation(ctx context.Context, teamID string, uninstalledAt time.Time) error
 }
 
 // EventClaimer makes typed karma at-most-once per Slack event: Slack re-sends an event when
@@ -144,7 +145,9 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 	if envelope.Type == "event_callback" && uninstallsBot(envelope.Event) {
 		// Removing twice is harmless, so an error is safe for Slack to retry.
 		if p.installs != nil {
-			if err := p.installs.RemoveInstallation(r.Context(), envelope.TeamID); err != nil {
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 10*time.Second)
+			defer cancel()
+			if err := p.installs.RemoveInstallation(ctx, envelope.TeamID, eventTime(envelope)); err != nil {
 				slog.Error("remove installation failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 				http.Error(w, "failed to remove installation", http.StatusInternalServerError)
 				return
@@ -660,4 +663,12 @@ func uninstallsBot(ev SlackEvent) bool {
 		return len(ev.Tokens.Bot) > 0
 	}
 	return false
+}
+
+// eventTime is when Slack says the event happened, or now if the envelope omits it.
+func eventTime(envelope EventEnvelope) time.Time {
+	if envelope.EventTime > 0 {
+		return time.Unix(envelope.EventTime, 0)
+	}
+	return time.Now()
 }

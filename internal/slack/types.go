@@ -15,6 +15,7 @@ type SlackAuthorization struct {
 type EventEnvelope struct {
 	Type           string               `json:"type"`
 	EventID        string               `json:"event_id,omitempty"`
+	EventTime      int64                `json:"event_time,omitempty"`
 	Token          string               `json:"token,omitempty"`
 	Challenge      string               `json:"challenge,omitempty"`
 	TeamID         string               `json:"team_id,omitempty"`
