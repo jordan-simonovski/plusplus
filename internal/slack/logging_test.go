@@ -66,7 +66,7 @@ func TestOAuthFailureLogsNoSecrets(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			buf := captureLogs(t)
-			h := NewOAuthHandler("client-id", "client-secret-value", "https://example.com", tc.installer, "state-secret", "")
+			h := mustOAuthHandler(NewOAuthHandler("client-id", "client-secret-value", "https://example.com", tc.installer, "state-secret", ""))
 			h.httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,

@@ -70,9 +70,9 @@ func Load() (Config, error) {
 		if cfg.SlackClientSecret == "" {
 			return Config{}, fmt.Errorf("SLACK_CLIENT_SECRET is required when SLACK_CLIENT_ID is set")
 		}
-		// The OAuth redirect_uri must be derived from a trusted, fixed origin.
-		// Without this the URL falls back to request headers (X-Forwarded-Host),
-		// which a client can spoof. Slack would reject the mismatch, but fail closed here.
+		// The OAuth redirect_uri must come from a trusted, fixed origin, never from
+		// forwarded-host request headers, which a client can spoof. The OAuth handler
+		// refuses to start without it too.
 		if cfg.PublicBaseURL == "" {
 			return Config{}, fmt.Errorf("PUBLIC_BASE_URL is required when SLACK_CLIENT_ID is set")
 		}
