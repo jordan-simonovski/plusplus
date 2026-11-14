@@ -73,6 +73,7 @@ ${body}
       <a href="https://github.com/jordan-simonovski/plusplus" target="_blank" rel="noopener">Source on GitHub</a>
     </span>
   </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
 `;
