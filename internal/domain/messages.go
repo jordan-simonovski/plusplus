@@ -63,3 +63,7 @@ func FormatGroupSelfKarmaRejection(targetName string, reason RejectionReason) st
 		return fmt.Sprintf("%s can't give karma to themselves.", boldItalic(targetName))
 	}
 }
+
+// GroupAwardStoppedNote ends a user-group award reply that failed partway: the members
+// listed above it were credited, the rest were not.
+const GroupAwardStoppedNote = "_Something went wrong partway through, so the rest of the group didn't get karma. Everyone listed above did._"

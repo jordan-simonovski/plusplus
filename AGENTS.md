@@ -73,7 +73,7 @@ say so instead of working around it.
    self-karma rules live. `ApplyDelta` is one atomic DynamoDB `ADD`; do not replace it with
    read-then-write.
 5. **Bookkeeping rows carry no `karma_total`.** The karma table also holds rows whose
-   `user_id` starts with `#` (`#recent`, `#rx#…`). The leaderboard index is sparse on
+   `user_id` starts with `#` (`#recent`, `#rx#…`, `#km#…`, `#evt#…`). The leaderboard index is sparse on
    `karma_total`, so a bookkeeping row with that attribute would appear on leaderboards.
 6. **Reactions are symmetric.** A removed reaction takes back the tier that was stored
    when it was added, even if the emoji mapping changed in between.

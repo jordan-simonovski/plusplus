@@ -5,8 +5,11 @@ package persistence
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -197,5 +200,137 @@ func TestDynamoApplyDeltaConcurrentIntegration(t *testing.T) {
 	}
 	if rec.KarmaTotal != n || rec.KarmaMax != n {
 		t.Fatalf("after %d concurrent +1s: total=%d max=%d, want %d and %d", n, rec.KarmaTotal, rec.KarmaMax, n, n)
+	}
+}
+
+func TestDynamoEventClaimsIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	claims := NewDynamoEventClaims(client, cfg.KarmaTable)
+	team := uniqueTeam("T-evt-it")
+
+	for i, want := range []bool{true, false} {
+		got, err := claims.ClaimEvent(ctx, team, "Ev1")
+		if err != nil || got != want {
+			t.Fatalf("claim %d = %v, %v; want %v", i+1, got, err, want)
+		}
+	}
+	if err := claims.ReleaseEvent(ctx, team, "Ev1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := claims.ClaimEvent(ctx, team, "Ev1"); err != nil || !got {
+		t.Fatalf("claim after release = %v, %v; want true", got, err)
+	}
+	if got, err := claims.ClaimEvent(ctx, team, "Ev1"); err != nil || got {
+		t.Fatalf("claim after re-claim = %v, %v; want false", got, err)
+	}
+
+	row, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(cfg.KarmaTable),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: team},
+			attrUserID: &types.AttributeValueMemberS{Value: eventClaimPrefix + "Ev1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp, ok := row.Item[attrExpiresAt].(*types.AttributeValueMemberN)
+	if !ok {
+		t.Fatalf("claim row has no numeric %s: %v", attrExpiresAt, row.Item)
+	}
+	if at, _ := strconv.ParseInt(exp.Value, 10, 64); at < time.Now().Add(23*time.Hour).Unix() {
+		t.Fatalf("%s = %d, want about 24h from now", attrExpiresAt, at)
+	}
+	if _, isReleased := row.Item[attrReleased]; isReleased {
+		t.Fatalf("re-claimed row still marked released: %v", row.Item)
+	}
+
+	// Releasing a claim that no longer exists must not create a row with no expiry.
+	if err := claims.ReleaseEvent(ctx, team, "Ev-gone"); err != nil {
+		t.Fatal(err)
+	}
+	gone, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(cfg.KarmaTable),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: team},
+			attrUserID: &types.AttributeValueMemberS{Value: eventClaimPrefix + "Ev-gone"},
+		},
+	})
+	if err != nil || gone.Item != nil {
+		t.Fatalf("release of a missing claim created %v (err %v)", gone.Item, err)
+	}
+
+	board, err := NewDynamoKarmaRepository(client, cfg.KarmaTable).GetLeaderboard(ctx, team, 10)
+	if err != nil || len(board) != 0 {
+		t.Fatalf("claim rows must not reach the leaderboard: %v, %v", board, err)
+	}
+}
+
+// freshTables points cfg at tables no earlier run created, so EnsureTables takes its
+// create path, and drops them when the test ends.
+func freshTables(t *testing.T, ctx context.Context, client *dynamodb.Client, cfg appconfig.Config) appconfig.Config {
+	t.Helper()
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	cfg.KarmaTable = "plusplus_karma_fresh_" + suffix
+	cfg.SettingsTable = "plusplus_settings_fresh_" + suffix
+	cfg.WorkspacesTable = "plusplus_workspaces_fresh_" + suffix
+	t.Cleanup(func() {
+		for _, name := range []string{cfg.KarmaTable, cfg.SettingsTable, cfg.WorkspacesTable} {
+			_, _ = client.DeleteTable(ctx, &dynamodb.DeleteTableInput{TableName: aws.String(name)})
+		}
+	})
+	return cfg
+}
+
+func karmaTTL(t *testing.T, ctx context.Context, client *dynamodb.Client, table string) *types.TimeToLiveDescription {
+	t.Helper()
+	out, err := client.DescribeTimeToLive(ctx, &dynamodb.DescribeTimeToLiveInput{TableName: aws.String(table)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out.TimeToLiveDescription
+}
+
+// EnsureTables turns on TTL for a karma table it creates, so claim rows expire.
+func TestDynamoEnsureTablesEnablesKarmaTTLIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	cfg = freshTables(t, ctx, client, cfg)
+	if err := EnsureTables(ctx, client, cfg); err != nil {
+		t.Fatal(err)
+	}
+	d := karmaTTL(t, ctx, client, cfg.KarmaTable)
+	if d == nil || aws.ToString(d.AttributeName) != attrExpiresAt ||
+		(d.TimeToLiveStatus != types.TimeToLiveStatusEnabled && d.TimeToLiveStatus != types.TimeToLiveStatusEnabling) {
+		t.Fatalf("karma table TTL = %+v, want enabled on %s", d, attrExpiresAt)
+	}
+}
+
+// denyTTL answers UpdateTimeToLive the way AWS does when the IAM policy lacks it.
+type denyTTL struct{ inner dynamodb.HTTPClient }
+
+func (d denyTTL) Do(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("X-Amz-Target") != "DynamoDB_20120810.UpdateTimeToLive" {
+		return d.inner.Do(req)
+	}
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Header:     http.Header{"Content-Type": []string{"application/x-amz-json-1.0"}},
+		Body:       io.NopCloser(strings.NewReader(`{"__type":"com.amazonaws.dynamodb.v20120810#AccessDeniedException","message":"not authorized to perform: dynamodb:UpdateTimeToLive"}`)),
+		Request:    req,
+	}, nil
+}
+
+// Self-hosters whose credentials lack dynamodb:UpdateTimeToLive must still start up.
+func TestDynamoEnsureTablesToleratesTTLDeniedIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	cfg = freshTables(t, ctx, client, cfg)
+	denied := dynamodb.New(client.Options(), func(o *dynamodb.Options) {
+		o.HTTPClient = denyTTL{inner: o.HTTPClient}
+	})
+	if err := EnsureTables(ctx, denied, cfg); err != nil {
+		t.Fatalf("EnsureTables with UpdateTimeToLive denied: %v; want a logged warning and no error", err)
+	}
+	if d := karmaTTL(t, ctx, client, cfg.KarmaTable); d != nil && d.TimeToLiveStatus == types.TimeToLiveStatusEnabled {
+		t.Fatalf("TTL enabled although UpdateTimeToLive was denied: %+v", d)
 	}
 }

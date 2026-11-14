@@ -126,6 +126,7 @@ For this, the credentials need:
 
 - `dynamodb:DescribeTable`
 - `dynamodb:CreateTable`
+- `dynamodb:UpdateTimeToLive` (optional; see "Expiring event claims" below)
 - `dynamodb:GetItem`, `dynamodb:PutItem`, `dynamodb:UpdateItem`, `dynamodb:Query`
 
 ### Option B — pre-create the tables (least privilege at runtime)
@@ -197,10 +198,30 @@ aws dynamodb create-table \
   --billing-mode PAY_PER_REQUEST \
   --attribute-definitions AttributeName=team_id,AttributeType=S \
   --key-schema AttributeName=team_id,KeyType=HASH
+
+aws dynamodb update-time-to-live \
+  --table-name plusplus_karma \
+  --time-to-live-specification Enabled=true,AttributeName=expires_at
 ```
 
 If you prefer infrastructure-as-code, `terraform/dynamodb.tf` in this repo
 defines the same tables and is a good starting point.
+
+### Expiring event claims
+
+So that Slack re-sending a message never gives karma twice, the app writes a small
+row per karma message to the karma table and keeps it for 24 hours, using DynamoDB
+TTL on the `expires_at` attribute to delete it afterwards.
+
+- **Option A:** when the app creates the karma table it also turns TTL on, which
+  needs `dynamodb:UpdateTimeToLive`. Without that permission it logs a warning and
+  carries on.
+- **Option B**, or a karma table created before this release: turn TTL on yourself
+  with the `update-time-to-live` command above (or the `ttl` block in
+  `terraform/dynamodb.tf`).
+
+Without TTL everything still works; the claim rows just accumulate (a few hundred
+bytes per karma message).
 
 ---
 

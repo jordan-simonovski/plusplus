@@ -64,7 +64,8 @@ func main() {
 	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
 	server := transport.NewServer(
 		transport.NewEventsHandler(appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient).
-			WithReactions(reactionSettings, reactionState, cfg.MaxKarmaPerAction)),
+			WithReactions(reactionSettings, reactionState, cfg.MaxKarmaPerAction).
+			WithEventClaims(persistence.NewDynamoEventClaims(dynamoClient, cfg.KarmaTable))),
 		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, version.Version).
 			WithReactionSettings(reactionSettings)),
 		interactions,

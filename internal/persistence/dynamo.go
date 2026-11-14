@@ -32,6 +32,8 @@ const (
 	attrBotToken     = "bot_token_ciphertext"
 	attrInstalledAt  = "installed_at"
 	attrRecentJSON   = "recent_json"
+	attrReleased     = "released"
+	attrExpiresAt    = "expires_at" // DynamoDB TTL attribute on the karma table
 
 	leaderboardIndex = "leaderboard"
 )
@@ -116,8 +118,16 @@ func EnsureTables(ctx context.Context, client *dynamodb.Client, cfg appconfig.Co
 	}
 
 	for _, input := range creates {
-		if err := ensureTable(ctx, client, input); err != nil {
+		created, err := ensureTable(ctx, client, input)
+		if err != nil {
 			return err
+		}
+		// Expire event-claim rows. Only on a table we just created: an existing table's TTL
+		// belongs to whoever provisioned it, and this call needs dynamodb:UpdateTimeToLive.
+		if created && aws.ToString(input.TableName) == cfg.KarmaTable {
+			if err := enableTTL(ctx, client, cfg.KarmaTable); err != nil {
+				log.Printf("dynamodb: could not enable TTL on %s (event-claim rows will not expire): %v", cfg.KarmaTable, err)
+			}
 		}
 	}
 
@@ -129,26 +139,38 @@ func EnsureTables(ctx context.Context, client *dynamodb.Client, cfg appconfig.Co
 // by Terraform), it only waits for ACTIVE and needs nothing more than
 // dynamodb:DescribeTable. It creates the table only when missing (local dev /
 // DynamoDB Local), which is the only path that needs dynamodb:CreateTable.
-func ensureTable(ctx context.Context, client *dynamodb.Client, input *dynamodb.CreateTableInput) error {
+// created reports whether this call created the table.
+func ensureTable(ctx context.Context, client *dynamodb.Client, input *dynamodb.CreateTableInput) (created bool, err error) {
 	name := aws.ToString(input.TableName)
 
-	_, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: input.TableName})
+	_, err = client.DescribeTable(ctx, &dynamodb.DescribeTableInput{TableName: input.TableName})
 	switch {
 	case err == nil:
-		return waitActive(ctx, client, input.TableName)
+		return false, waitActive(ctx, client, input.TableName)
 	case isNotFound(err):
 		log.Printf("dynamodb: table %s missing, creating", name)
 		if _, err := client.CreateTable(ctx, input); err != nil {
 			var inUse *types.ResourceInUseException
 			if errors.As(err, &inUse) {
-				return waitActive(ctx, client, input.TableName)
+				return false, waitActive(ctx, client, input.TableName)
 			}
-			return fmt.Errorf("create table %s: %w", name, err)
+			return false, fmt.Errorf("create table %s: %w", name, err)
 		}
-		return waitActive(ctx, client, input.TableName)
+		return true, waitActive(ctx, client, input.TableName)
 	default:
-		return fmt.Errorf("describe table %s: %w", name, err)
+		return false, fmt.Errorf("describe table %s: %w", name, err)
 	}
+}
+
+func enableTTL(ctx context.Context, client *dynamodb.Client, table string) error {
+	_, err := client.UpdateTimeToLive(ctx, &dynamodb.UpdateTimeToLiveInput{
+		TableName: aws.String(table),
+		TimeToLiveSpecification: &types.TimeToLiveSpecification{
+			AttributeName: aws.String(attrExpiresAt),
+			Enabled:       aws.Bool(true),
+		},
+	})
+	return err
 }
 
 func waitActive(ctx context.Context, client *dynamodb.Client, name *string) error {

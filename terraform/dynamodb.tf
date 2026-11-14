@@ -28,6 +28,12 @@ resource "aws_dynamodb_table" "karma" {
     projection_type = "ALL"
   }
 
+  # Expires the app's per-event claim rows (user_id "#evt#..."); karma rows have no expires_at.
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
   point_in_time_recovery {
     enabled = var.point_in_time_recovery
   }
@@ -98,6 +104,12 @@ resource "aws_dynamodb_table" "karma_selfhosted" {
     hash_key        = "team_id"
     range_key       = "karma_total"
     projection_type = "ALL"
+  }
+
+  # Expires the app's per-event claim rows (user_id "#evt#..."); karma rows have no expires_at.
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
   }
 
   point_in_time_recovery {
