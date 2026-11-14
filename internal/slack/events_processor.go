@@ -448,32 +448,27 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 		}
 	}
 
-	symbol := "+"
-	if delta < 0 {
-		symbol = "-"
-	}
-	var lines []string
-	for i, target := range targets {
+	var lines, applied []string
+	for _, target := range targets {
 		result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
 			TeamID:       team,
 			ActorUserID:  reactor,
 			TargetUserID: target,
 			TargetHandle: "<@" + target + ">",
-			SymbolRun:    strings.Repeat(symbol, abs(delta)+1), // a run of n+1 symbols moves karma by n
+			SymbolRun:    symbolRun(delta),
 			SnarkLevel:   snarkLevel,
 			SkipWar:      !added || domain.NetReactionTier(before) != 0,
 		})
 		if err != nil {
-			if i > 0 {
-				// ponytail: earlier targets already have their karma, so a retry would
-				// double-credit them; the rest miss out. Per-target state if this bites.
-				log.Printf("reaction karma: stopped after %d of %d targets for team %s channel %s: %v", i, len(targets), team, channel, err)
-				break
-			}
-			// Put the reaction state back so Slack's retry recomputes the same delta
-			// instead of seeing no change and dropping the karma.
+			// Take back what this event already gave and put the reaction state back, so
+			// Slack's retry applies the same delta to everyone. Nobody is left holding a
+			// partial award that a later removal would undo from people who never got it.
+			p.reverseKarma(ctx, team, reactor, applied, -delta, snarkLevel)
 			p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
 			return err
+		}
+		if result.ShouldPersist {
+			applied = append(applied, target)
 		}
 		if result.Message != "" {
 			lines = append(lines, result.Message)
@@ -487,6 +482,33 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 		log.Printf("reaction karma: reply failed for team %s channel %s: %v", team, channel, err)
 	}
 	return nil
+}
+
+// symbolRun turns a karma delta into the symbol run that applies it: n+1 symbols move karma by n.
+func symbolRun(delta int) string {
+	if delta < 0 {
+		return strings.Repeat("-", -delta+1)
+	}
+	return strings.Repeat("+", delta+1)
+}
+
+// reverseKarma applies delta to each target to undo karma this event already gave.
+// ponytail: best effort; if a reversal also fails that target keeps the karma and
+// Slack's retry gives it again. Fine while ApplyDelta failures are rare and brief.
+func (p *EventsProcessor) reverseKarma(ctx context.Context, team, reactor string, targets []string, delta, snarkLevel int) {
+	for _, target := range targets {
+		if _, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
+			TeamID:       team,
+			ActorUserID:  reactor,
+			TargetUserID: target,
+			TargetHandle: "<@" + target + ">",
+			SymbolRun:    symbolRun(delta),
+			SnarkLevel:   snarkLevel,
+			SkipWar:      true,
+		}); err != nil {
+			log.Printf("reaction karma: could not reverse karma for team %s: %v", team, err)
+		}
+	}
 }
 
 // reactionTargets is who a reaction credits: the users a typed karma message
