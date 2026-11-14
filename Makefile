@@ -2,16 +2,27 @@ SHELL := /bin/sh
 
 APP_ENTRY := ./cmd/server
 
-.PHONY: fmt lint test test-integration run build up down logs release
+.PHONY: fmt fmt-check lint test check test-integration run build up down logs release
+
+# Go code lives in cmd/ and internal/ (the Dockerfile copies only those). Scoping to them
+# keeps gofmt out of .claude/worktrees and node_modules.
+GO_DIRS := cmd internal
 
 fmt:
-	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+	gofmt -w $(GO_DIRS)
+
+fmt-check:
+	@out="$$(gofmt -l $(GO_DIRS))" || exit 1; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 lint:
 	go vet ./...
+	go vet -tags=integration ./internal/persistence
+	golangci-lint run ./...
 
 test:
-	go test ./...
+	go test -race ./...
+
+check: fmt-check lint test
 
 test-integration:
 	DYNAMODB_ENDPOINT=http://localhost:8000 AWS_REGION=ap-southeast-2 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local go test -tags=integration ./internal/persistence -v

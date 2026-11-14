@@ -31,7 +31,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  go:
+    uses: ./.github/workflows/go.yml
+
   build:
+    needs: go
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

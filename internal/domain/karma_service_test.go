@@ -10,8 +10,8 @@ import (
 func TestKarmaServiceHandleAction(t *testing.T) {
 	repo := &fakeRepo{
 		record: KarmaRecord{
-			TeamID:    "T1",
-			UserID:    "U2",
+			TeamID:     "T1",
+			UserID:     "U2",
 			KarmaTotal: 7,
 			KarmaMax:   10,
 		},

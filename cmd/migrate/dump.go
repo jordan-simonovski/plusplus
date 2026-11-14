@@ -37,7 +37,7 @@ func parseDump(path string) (dumpData, error) {
 	if err != nil {
 		return dumpData{}, fmt.Errorf("open dump %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)

@@ -63,7 +63,7 @@ func (c *APIClient) PostMessage(ctx context.Context, channelID string, text stri
 	if err != nil {
 		return fmt.Errorf("send slack request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -107,7 +107,7 @@ func (c *APIClient) ListUserGroupMembers(ctx context.Context, teamID, userGroupI
 	if err != nil {
 		return nil, fmt.Errorf("send slack usergroups request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -177,7 +177,7 @@ func (c *APIClient) usersInfo(ctx context.Context, userID string) (usersInfoResp
 	if err != nil {
 		return usersInfoResponse{}, fmt.Errorf("send slack users.info request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

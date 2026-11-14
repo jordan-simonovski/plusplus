@@ -139,7 +139,7 @@ func (t *mutableTiers) ReactionTiers(context.Context, string, string) (map[strin
 	return t.m, nil
 }
 
-type failingWeb struct{ fakeWebClient }
+type failingWeb struct{}
 
 func (f *failingWeb) PostMessage(context.Context, string, string, string, string) error {
 	return errors.New("rate_limited")

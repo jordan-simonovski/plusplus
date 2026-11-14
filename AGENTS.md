@@ -8,21 +8,18 @@ break the other, so read "Rules that must hold" before editing.
 ## Commands
 
 ```sh
-gofmt -l .                # must print nothing
-go vet ./...
-golangci-lint run ./...   # default linters, v2.x
-go test -race ./...       # unit tests, no network or database needed
+make check                # gofmt check, go vet, golangci-lint, go test -race
 make up                   # DynamoDB Local on :8000 plus the app on :8080
 make test-integration     # persistence tests; needs DynamoDB Local running
 make run                  # run the server against DynamoDB Local with dev secrets
 ```
 
-Run the first four before every commit. Run `make test-integration` whenever you touch
-`internal/persistence`, because the default test run does not exercise DynamoDB at all.
-It needs Docker; if Docker is not available, say so in the PR description.
-
-Until backlog item 01 is done, `gofmt` and `golangci-lint` report findings in files you
-did not touch. Leave those alone and make sure your own diff adds none.
+Run `make check` before every commit; CI runs the same target on every pull request, plus
+`govulncheck`. It needs golangci-lint on your PATH, at the version pinned in
+`.github/workflows/go.yml` (`go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@<version>`). Run
+`make test-integration` whenever you touch `internal/persistence`, because the default
+test run does not exercise DynamoDB at all. It needs Docker; if Docker is not available,
+say so in the PR description.
 
 ## Where things live
 
