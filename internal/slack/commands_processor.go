@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -33,7 +32,6 @@ type ReactionSettingsCommands interface {
 }
 
 type CommandsProcessor struct {
-	signingSecret   string
 	leaderboard     LeaderboardService
 	settingsService SettingsCommandService
 	reactions       ReactionSettingsCommands
@@ -46,34 +44,16 @@ func (p *CommandsProcessor) WithReactionSettings(reactions ReactionSettingsComma
 	return p
 }
 
-func NewCommandsProcessor(signingSecret string, leaderboard LeaderboardService, settingsService SettingsCommandService, version string) *CommandsProcessor {
+func NewCommandsProcessor(leaderboard LeaderboardService, settingsService SettingsCommandService, version string) *CommandsProcessor {
 	return &CommandsProcessor{
-		signingSecret:   signingSecret,
 		leaderboard:     leaderboard,
 		settingsService: settingsService,
 		version:         version,
 	}
 }
 
-func (p *CommandsProcessor) ProcessCommand(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "failed to read command payload", http.StatusBadRequest)
-		return
-	}
-
-	timestamp := r.Header.Get("X-Slack-Request-Timestamp")
-	signature := r.Header.Get("X-Slack-Signature")
-	if err := VerifyRequestSignature(p.signingSecret, timestamp, signature, body); err != nil {
-		http.Error(w, "invalid signature", http.StatusUnauthorized)
-		return
-	}
-
+// HandleCommand handles one slash command. body has already passed VerifiedBody.
+func (p *CommandsProcessor) HandleCommand(w http.ResponseWriter, r *http.Request, body []byte) {
 	payload, err := parseSlashPayload(body)
 	if err != nil {
 		http.Error(w, "invalid command payload", http.StatusBadRequest)

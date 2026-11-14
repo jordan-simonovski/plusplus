@@ -19,13 +19,13 @@ import (
 )
 
 func TestCommandsProcessorLeaderboard(t *testing.T) {
-	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	processor := NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fplusplus-leaderboard&text=")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessCommand(rec, req)
+	serveCommand(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -41,13 +41,13 @@ func TestCommandsProcessorLeaderboard(t *testing.T) {
 }
 
 func TestCommandsProcessorSettingsUsage(t *testing.T) {
-	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	processor := NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fplusplus-settings&text=bad")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessCommand(rec, req)
+	serveCommand(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -74,13 +74,13 @@ func TestCommandsProcessorHelpAndUnknownInput(t *testing.T) {
 		"command=%2Fleaderboard&text=help",
 		"command=%2Fsettings&text=bad",
 	}
-	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	processor := NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	for _, c := range cases {
 		body := []byte("team_id=T1&channel_id=C1&user_id=U1&" + c)
 		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 		addSignedHeaders(req, "secret", body)
 		rec := httptest.NewRecorder()
-		processor.ProcessCommand(rec, req)
+		serveCommand(processor, rec, req)
 
 		var response MessageResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
@@ -95,7 +95,7 @@ func TestCommandsProcessorHelpAndUnknownInput(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 		addSignedHeaders(req, "secret", body)
 		rec := httptest.NewRecorder()
-		processor.ProcessCommand(rec, req)
+		serveCommand(processor, rec, req)
 
 		var response MessageResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
@@ -108,12 +108,12 @@ func TestCommandsProcessorHelpAndUnknownInput(t *testing.T) {
 }
 
 func TestCommandsProcessorLegacyLeaderboardStillWorks(t *testing.T) {
-	processor := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	processor := NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	body := []byte("team_id=T1&channel_id=C1&user_id=U1&command=%2Fleaderboard&text=")
 	req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 	addSignedHeaders(req, "secret", body)
 	rec := httptest.NewRecorder()
-	processor.ProcessCommand(rec, req)
+	serveCommand(processor, rec, req)
 
 	var response MessageResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {

@@ -73,22 +73,17 @@ func main() {
 	reactionSettings := appslack.NewReactionSettingsService(settingsRepo).WithAdminCheck(slackClient)
 	reactionState := persistence.NewDynamoReactionStore(dynamoClient, cfg.KarmaTable)
 
-	events := appslack.NewEventsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, slackClient, slackClient).
+	events := appslack.NewEventsProcessor(karmaService, settingsService, slackClient, slackClient).
 		WithReactions(reactionSettings, reactionState, cfg.MaxKarmaPerAction).
 		WithEventClaims(persistence.NewDynamoEventClaims(dynamoClient, cfg.KarmaTable))
 	if workspaceRepo != nil {
 		events.WithInstallationRemover(workspaceRepo)
 	}
 
-	interactions := appslack.NewInteractionsProcessor(cfg.SlackSigningSecret, settingsService)
-	server := transport.NewServer(
-		transport.NewEventsHandler(events),
-		transport.NewCommandsHandler(appslack.NewCommandsProcessor(cfg.SlackSigningSecret, karmaService, settingsService, version.Version).
-			WithReactionSettings(reactionSettings)),
-		interactions,
-		oauthInstall,
-		oauthCallback,
-	)
+	commands := appslack.NewCommandsProcessor(karmaService, settingsService, version.Version).
+		WithReactionSettings(reactionSettings)
+	interactions := appslack.NewInteractionsProcessor(settingsService)
+	server := slackServer(cfg.SlackSigningSecret, events, commands, interactions, oauthInstall, oauthCallback)
 
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -117,4 +112,15 @@ func main() {
 		slog.Error("graceful shutdown failed", "err", err)
 		os.Exit(1)
 	}
+}
+
+// slackServer routes the Slack endpoints, each behind the signature check.
+func slackServer(signingSecret string, events *appslack.EventsProcessor, commands *appslack.CommandsProcessor, interactions *appslack.InteractionsProcessor, oauthInstall, oauthCallback http.HandlerFunc) *transport.Server {
+	return transport.NewServer(
+		appslack.VerifiedBody(signingSecret, events.HandleEvent),
+		appslack.VerifiedBody(signingSecret, commands.HandleCommand),
+		appslack.VerifiedBody(signingSecret, interactions.HandleInteraction),
+		oauthInstall,
+		oauthCallback,
+	)
 }

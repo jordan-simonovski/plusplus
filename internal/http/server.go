@@ -6,29 +6,20 @@ import (
 	"time"
 )
 
-type EventsHandler interface {
-	HandleEvents(http.ResponseWriter, *http.Request)
-}
-
-type CommandsHandler interface {
-	HandleCommand(http.ResponseWriter, *http.Request)
-}
-
-type InteractionsHandler interface {
-	HandleInteraction(http.ResponseWriter, *http.Request)
-}
-
 type Server struct {
 	mux *http.ServeMux
 }
 
-func NewServer(eventsHandler EventsHandler, commandsHandler CommandsHandler, interactionsHandler InteractionsHandler, oauthInstall, oauthCallback http.HandlerFunc) *Server {
+// NewServer routes the Slack endpoints. The events, commands and interactions handlers
+// must already be wrapped in slack.VerifiedBody; cmd/server's slackServer does that, and
+// its test checks every Slack route rejects unsigned requests.
+func NewServer(events, commands, interactions http.Handler, oauthInstall, oauthCallback http.HandlerFunc) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", handleHealth)
-	mux.HandleFunc("/slack/events", eventsHandler.HandleEvents)
-	mux.HandleFunc("/slack/commands", commandsHandler.HandleCommand)
-	if interactionsHandler != nil {
-		mux.HandleFunc("/slack/interactions", interactionsHandler.HandleInteraction)
+	mux.Handle("POST /slack/events", events)
+	mux.Handle("POST /slack/commands", commands)
+	if interactions != nil {
+		mux.Handle("POST /slack/interactions", interactions)
 	}
 	if oauthInstall == nil {
 		oauthInstall = oauthInstallDisabled

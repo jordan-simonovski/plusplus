@@ -115,7 +115,7 @@ func postKarma(p *EventsProcessor, ts, text string) int {
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
 	addSlackSignatureHeaders(req, "secret", body)
 	rec := httptest.NewRecorder()
-	p.ProcessEvent(rec, req)
+	serveEvent(p, rec, req)
 	return rec.Code
 }
 
@@ -128,7 +128,7 @@ func reactAt(p *EventsProcessor, kind, ts, reactor, emoji string, headers ...str
 		req.Header.Set(headers[i], headers[i+1])
 	}
 	rec := httptest.NewRecorder()
-	p.ProcessEvent(rec, req)
+	serveEvent(p, rec, req)
 	return rec.Code
 }
 
@@ -155,7 +155,7 @@ func sendReaction(t *testing.T, p *EventsProcessor, kind, reactor, author, emoji
 		req.Header.Set(headers[i], headers[i+1])
 	}
 	rec := httptest.NewRecorder()
-	p.ProcessEvent(rec, req)
+	serveEvent(p, rec, req)
 	return rec.Code
 }
 
@@ -169,14 +169,14 @@ func reactionEvent(kind, reactor, author, emoji string) []byte {
 func TestReactionKarmaHighestTierAndUndo(t *testing.T) {
 	var runs []string
 	web := &fakeWebClient{}
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
 
 	send := func(kind, reactor, author, emoji string) {
 		body := reactionEvent(kind, reactor, author, emoji)
 		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
 		addSlackSignatureHeaders(req, "secret", body)
 		rec := httptest.NewRecorder()
-		p.ProcessEvent(rec, req)
+		serveEvent(p, rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s %s: status %d", kind, emoji, rec.Code)
 		}
@@ -209,7 +209,7 @@ func TestReactionKarmaHighestTierAndUndo(t *testing.T) {
 func TestReactionsOnTypedKarmaCreditTheMentionedPeople(t *testing.T) {
 	var runs []string
 	web := &fakeWebClient{}
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
 
 	post := func(ts, text string) {
 		if code := postKarma(p, ts, text); code != http.StatusOK {
@@ -247,7 +247,7 @@ func TestReactionPartialFailureReversesAndRetriesCleanly(t *testing.T) {
 	var runs []string
 	failOn := -1 // disarmed while the typed message is posted
 	state := memReactionState{}
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs, failOn: &failOn}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, state, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, failOn: &failOn}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, state, 5)
 
 	if code := postKarma(p, "100.1", "<@U3> ++ <@U4> ++"); code != http.StatusOK {
 		t.Fatalf("post: status %d", code)
@@ -277,14 +277,14 @@ func TestReactionPartialFailureReversesAndRetriesCleanly(t *testing.T) {
 
 func TestKarmaMessageStoreFailuresAreSafeToRetry(t *testing.T) {
 	var runs []string
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).
 		WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5)
 	if code := postKarma(p, "100.1", "<@U3> ++"); code != http.StatusInternalServerError || len(runs) != 0 {
 		t.Fatalf("a failed record must apply no karma and ask for a retry: code %d runs %v", code, runs)
 	}
 
 	state := memReactionState{}
-	p = NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).
+	p = NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).
 		WithReactions(defaultTiers{}, failingStore{memReactionState: state, failLookup: true}, 5)
 	if code := reactAt(p, "reaction_added", "100.1", "U1", "fire"); code != http.StatusInternalServerError || len(runs) != 0 {
 		t.Fatalf("a failed lookup must apply no karma and ask for a retry: code %d runs %v", code, runs)
@@ -348,7 +348,7 @@ func TestReactionSettingsSetTierAndReset(t *testing.T) {
 
 func TestSettingsEmojiCommandRouting(t *testing.T) {
 	store := &memOverrides{}
-	p := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test").
+	p := NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test").
 		WithReactionSettings(NewReactionSettingsService(store))
 
 	run := func(text string) string {
@@ -356,7 +356,7 @@ func TestSettingsEmojiCommandRouting(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 		addSignedHeaders(req, "secret", body)
 		rec := httptest.NewRecorder()
-		p.ProcessCommand(rec, req)
+		serveCommand(p, rec, req)
 		return rec.Body.String()
 	}
 
@@ -375,7 +375,7 @@ func TestSettingsEmojiCommandRouting(t *testing.T) {
 func TestReactionUndoUsesStoredTierAfterRemap(t *testing.T) {
 	var runs []string
 	tiers := &mutableTiers{m: domain.ResolveReactionTiers()}
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(tiers, memReactionState{}, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(tiers, memReactionState{}, 5)
 
 	sendReaction(t, p, "reaction_added", "U1", "U2", "fire") // +4
 	tiers.m = domain.ResolveReactionTiers(domain.TierOverrides{-5: {"fire"}})
@@ -390,7 +390,7 @@ func TestReactionUndoUsesStoredTierAfterRemap(t *testing.T) {
 
 func TestReactionDeltasStayWithinLowCap(t *testing.T) {
 	var runs []string
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 3)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 3)
 
 	sendReaction(t, p, "reaction_added", "U1", "U2", "trophy")   // clamped to +3
 	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")     // below 3: nothing
@@ -417,7 +417,7 @@ func TestReactionStateRestoredWhenKarmaFails(t *testing.T) {
 	var runs []string
 	fail := 1
 	state := memReactionState{}
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs, failN: &fail}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, state, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, failN: &fail}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, state, 5)
 
 	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire"); code != http.StatusInternalServerError {
 		t.Fatalf("karma failure should ask Slack to retry, got %d", code)
@@ -435,7 +435,7 @@ func TestReactionStateRestoredWhenKarmaFails(t *testing.T) {
 
 func TestReactionTimeoutRetryIsIgnored(t *testing.T) {
 	var runs []string
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
 	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire", "X-Slack-Retry-Num", "1", "X-Slack-Retry-Reason", "http_timeout"); code != http.StatusOK || len(runs) != 0 {
 		t.Fatalf("timeout retry must be acked without reprocessing: code %d runs %v", code, runs)
 	}
@@ -443,7 +443,7 @@ func TestReactionTimeoutRetryIsIgnored(t *testing.T) {
 
 func TestReactionReplyFailureKeepsKarmaAndAcks(t *testing.T) {
 	var runs []string
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &failingWeb{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &failingWeb{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
 	if code := sendReaction(t, p, "reaction_added", "U1", "U2", "fire"); code != http.StatusOK || len(runs) != 1 {
 		t.Fatalf("a failed reply should not fail the event: code %d runs %v", code, runs)
 	}
@@ -452,7 +452,7 @@ func TestReactionReplyFailureKeepsKarmaAndAcks(t *testing.T) {
 func TestReactionUpgradesAndRemovalsSkipKarmaWar(t *testing.T) {
 	var runs []string
 	var skip []bool
-	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs, skipWar: &skip}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, skipWar: &skip}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
 	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")     // first hit: counts for war detection
 	sendReaction(t, p, "reaction_added", "U1", "U2", "trophy")   // upgrade
 	sendReaction(t, p, "reaction_removed", "U1", "U2", "trophy") // removal
@@ -499,11 +499,11 @@ func TestEmojiCommandBranchesAndErrors(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 		addSignedHeaders(req, "secret", body)
 		rec := httptest.NewRecorder()
-		p.ProcessCommand(rec, req)
+		serveCommand(p, rec, req)
 		return rec.Body.String()
 	}
 	newP := func(store ReactionOverridesStore) *CommandsProcessor {
-		return NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test").
+		return NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test").
 			WithReactionSettings(NewReactionSettingsService(store))
 	}
 
@@ -522,7 +522,7 @@ func TestEmojiCommandBranchesAndErrors(t *testing.T) {
 		t.Fatalf("storage errors should be generic, got %s", out)
 	}
 
-	noReactions := NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+	noReactions := NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	if out := run(noReactions, "emoji"); !strings.Contains(out, "PlusPlus help") {
 		t.Fatalf("emoji without reaction support should show usage, got %s", out)
 	}
@@ -534,11 +534,11 @@ func TestSettingsPanelShowsKarmaReactions(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/slack/commands", bytes.NewReader(body))
 		addSignedHeaders(req, "secret", body)
 		rec := httptest.NewRecorder()
-		p.ProcessCommand(rec, req)
+		serveCommand(p, rec, req)
 		return rec.Body.String()
 	}
 	base := func() *CommandsProcessor {
-		return NewCommandsProcessor("secret", fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
+		return NewCommandsProcessor(fakeLeaderboardService{}, fakeSettingsCommandService{}, "test")
 	}
 
 	withReactions := run(base().WithReactionSettings(NewReactionSettingsService(&memOverrides{channel: domain.TierOverrides{3: {"partyparrot"}}})))

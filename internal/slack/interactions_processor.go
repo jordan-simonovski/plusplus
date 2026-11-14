@@ -3,7 +3,6 @@ package slack
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -17,40 +16,16 @@ type SettingsInteractionService interface {
 }
 
 type InteractionsProcessor struct {
-	signingSecret   string
 	settingsService SettingsInteractionService
 }
 
-func NewInteractionsProcessor(signingSecret string, settings SettingsInteractionService) *InteractionsProcessor {
-	return &InteractionsProcessor{
-		signingSecret:   signingSecret,
-		settingsService: settings,
-	}
+func NewInteractionsProcessor(settings SettingsInteractionService) *InteractionsProcessor {
+	return &InteractionsProcessor{settingsService: settings}
 }
 
-func (p *InteractionsProcessor) HandleInteraction(w http.ResponseWriter, r *http.Request) {
-	p.processInteraction(w, r)
-}
-
-func (p *InteractionsProcessor) processInteraction(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "failed to read interaction payload", http.StatusBadRequest)
-		return
-	}
-
-	timestamp := r.Header.Get("X-Slack-Request-Timestamp")
-	signature := r.Header.Get("X-Slack-Signature")
-	if err := VerifyRequestSignature(p.signingSecret, timestamp, signature, body); err != nil {
-		http.Error(w, "invalid signature", http.StatusUnauthorized)
-		return
-	}
-
+// HandleInteraction handles one interactive-component payload. body has already passed
+// VerifiedBody.
+func (p *InteractionsProcessor) HandleInteraction(w http.ResponseWriter, r *http.Request, body []byte) {
 	values, err := url.ParseQuery(string(body))
 	if err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
