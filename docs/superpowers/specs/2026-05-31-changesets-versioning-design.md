@@ -14,6 +14,16 @@ Add semantic versioning to PlusPlus (a Go app) using [Changesets](https://github
 
 Releases are cut **locally** by the maintainer. CI never bumps the version or pushes.
 
+> **Update 2026-11-14: releases go through a release PR.** Nobody was running
+> `make release`, and the pre-push guard below only sees local pushes, so changesets
+> merged through GitHub piled up unreleased. `.github/workflows/release.yml` now runs
+> `changesets/action` on every push to `main`: it opens or updates one `chore: release`
+> PR that runs `npm run release` (version bump, `CHANGELOG.md`, landing changelog).
+> CI still never pushes to `main`; the maintainer releases by merging that PR, and
+> `docker.yml` publishes the version tag. The pre-push hook no longer blocks on pending
+> changesets (they are now normal on `main`) but still checks the landing artifacts.
+> `make release` remains for a manual release.
+
 ## Constraints / decisions
 
 - Package manager: **npm**.

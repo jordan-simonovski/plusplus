@@ -130,7 +130,8 @@ say so instead of working around it.
 Leave these to the owner unless the task names them:
 
 - `terraform/`: merging to `main` applies it to production automatically.
-- `make release`, version bumps, and anything that pushes to `main`.
+- Merging the `chore: release` PR, `make release`, version bumps, and anything that pushes
+  to `main`.
 - `landing/privacy.html` and `landing/terms.html`: legal text.
 - Slack app configuration (see rule 8).
 

@@ -42,5 +42,7 @@ down:
 logs:
 	docker compose logs -f app
 
+# Releases normally go through the "chore: release" PR the release workflow opens.
+# This runs the same steps locally, for a manual release.
 release:
 	npm run release
