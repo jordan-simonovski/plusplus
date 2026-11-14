@@ -27,12 +27,17 @@ jobs:
       - name: Dry-run npm run release
         run: |
           pending=$(ls .changeset/*.md | grep -vc '/README\.md$' || true)
+          # Nothing to release: changeset version exits 1 ("No unreleased changesets found").
+          if [ "$pending" -eq 0 ]; then
+            echo "No pending changesets; nothing to dry-run."
+            exit 0
+          fi
           before=$(node -p "require('./package.json').version")
           npm run release
           after=$(node -p "require('./package.json').version")
           left=$(ls .changeset/*.md | grep -vc '/README\.md$' || true)
           echo "pending changesets: $pending, version: $before -> $after, left: $left"
-          if [ "$pending" -gt 0 ] && { [ "$before" = "$after" ] || [ "$left" -ne 0 ]; }; then
+          if [ "$before" = "$after" ] || [ "$left" -ne 0 ]; then
             echo "::error::npm run release did not consume the pending changesets; the release PR would be empty."
             exit 1
           fi
