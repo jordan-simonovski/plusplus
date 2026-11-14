@@ -199,3 +199,80 @@ func TestDynamoApplyDeltaConcurrentIntegration(t *testing.T) {
 		t.Fatalf("after %d concurrent +1s: total=%d max=%d, want %d and %d", n, rec.KarmaTotal, rec.KarmaMax, n, n)
 	}
 }
+
+func TestDynamoEventClaimsIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	claims := NewDynamoEventClaims(client, cfg.KarmaTable)
+	team := uniqueTeam("T-evt-it")
+
+	for i, want := range []bool{true, false} {
+		got, err := claims.ClaimEvent(ctx, team, "Ev1")
+		if err != nil || got != want {
+			t.Fatalf("claim %d = %v, %v; want %v", i+1, got, err, want)
+		}
+	}
+	if err := claims.ReleaseEvent(ctx, team, "Ev1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := claims.ClaimEvent(ctx, team, "Ev1"); err != nil || !got {
+		t.Fatalf("claim after release = %v, %v; want true", got, err)
+	}
+	if got, err := claims.ClaimEvent(ctx, team, "Ev1"); err != nil || got {
+		t.Fatalf("claim after re-claim = %v, %v; want false", got, err)
+	}
+
+	row, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(cfg.KarmaTable),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: team},
+			attrUserID: &types.AttributeValueMemberS{Value: eventClaimPrefix + "Ev1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp, ok := row.Item[attrExpiresAt].(*types.AttributeValueMemberN)
+	if !ok {
+		t.Fatalf("claim row has no numeric %s: %v", attrExpiresAt, row.Item)
+	}
+	if at, _ := strconv.ParseInt(exp.Value, 10, 64); at < time.Now().Add(23*time.Hour).Unix() {
+		t.Fatalf("%s = %d, want about 24h from now", attrExpiresAt, at)
+	}
+	if _, isReleased := row.Item[attrReleased]; isReleased {
+		t.Fatalf("re-claimed row still marked released: %v", row.Item)
+	}
+
+	// Releasing a claim that no longer exists must not create a row with no expiry.
+	if err := claims.ReleaseEvent(ctx, team, "Ev-gone"); err != nil {
+		t.Fatal(err)
+	}
+	gone, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(cfg.KarmaTable),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: team},
+			attrUserID: &types.AttributeValueMemberS{Value: eventClaimPrefix + "Ev-gone"},
+		},
+	})
+	if err != nil || gone.Item != nil {
+		t.Fatalf("release of a missing claim created %v (err %v)", gone.Item, err)
+	}
+
+	board, err := NewDynamoKarmaRepository(client, cfg.KarmaTable).GetLeaderboard(ctx, team, 10)
+	if err != nil || len(board) != 0 {
+		t.Fatalf("claim rows must not reach the leaderboard: %v, %v", board, err)
+	}
+}
+
+// EnsureTables turns on TTL for the karma table it creates, so claim rows expire.
+func TestDynamoEnsureTablesEnablesKarmaTTLIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	out, err := client.DescribeTimeToLive(ctx, &dynamodb.DescribeTimeToLiveInput{TableName: aws.String(cfg.KarmaTable)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := out.TimeToLiveDescription
+	if d == nil || aws.ToString(d.AttributeName) != attrExpiresAt ||
+		(d.TimeToLiveStatus != types.TimeToLiveStatusEnabled && d.TimeToLiveStatus != types.TimeToLiveStatusEnabling) {
+		t.Fatalf("karma table TTL = %+v, want enabled on %s", d, attrExpiresAt)
+	}
+}

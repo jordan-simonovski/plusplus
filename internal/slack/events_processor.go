@@ -45,7 +45,16 @@ type ReactionStateStore interface {
 	KarmaTargets(ctx context.Context, teamID, channelID, messageTS string) (targets []string, ok bool, err error)
 }
 
+// EventClaimer makes typed karma at-most-once per Slack event: Slack re-sends an event when
+// it gets no 2xx in three seconds, and a re-send must not apply the same karma again.
+type EventClaimer interface {
+	// ClaimEvent is true for the first delivery of an event (or after ReleaseEvent).
+	ClaimEvent(ctx context.Context, teamID, eventID string) (bool, error)
+	ReleaseEvent(ctx context.Context, teamID, eventID string) error
+}
+
 type EventsProcessor struct {
+	events        EventClaimer
 	signingSecret string
 	karmaService  KarmaActionService
 	settings      ChannelSettingsProvider
@@ -62,6 +71,13 @@ func (p *EventsProcessor) WithReactions(tiers ReactionTierProvider, state Reacti
 	p.reactionTiers = tiers
 	p.reactionState = state
 	p.reactionCap = maxKarmaPerAction
+	return p
+}
+
+// WithEventClaims makes typed karma safe for Slack to retry. Without it every delivery is
+// processed.
+func (p *EventsProcessor) WithEventClaims(events EventClaimer) *EventsProcessor {
+	p.events = events
 	return p
 }
 
@@ -162,6 +178,28 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Finish the work even if Slack disconnects at its 3s deadline.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
+	defer cancel()
+
+	// Claim the event before writing anything. Once karma may have been written the claim
+	// is kept even on failure: a dropped award is visible and can be retyped, a doubled one
+	// is not. Only failures before the first HandleAction release it.
+	claimed := false
+	if p.events != nil && envelope.EventID != "" {
+		ok, err := p.events.ClaimEvent(ctx, envelope.TeamID, envelope.EventID)
+		if err != nil {
+			http.Error(w, "failed to claim event", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			return
+		}
+		claimed = true
+	}
+
 	// Recorded before any karma is applied, so failing here is safe for Slack to retry.
 	if p.reactionState != nil {
 		var targets []string
@@ -170,18 +208,23 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 				targets = append(targets, seg.UserID)
 			}
 		}
-		if err := p.reactionState.RecordKarmaTargets(r.Context(), envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
+		if err := p.reactionState.RecordKarmaTargets(ctx, envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
+			if claimed {
+				if rerr := p.events.ReleaseEvent(ctx, envelope.TeamID, envelope.EventID); rerr != nil {
+					log.Printf("events: could not release event %s for team %s: %v", envelope.EventID, envelope.TeamID, rerr)
+				}
+			}
 			http.Error(w, "failed to record karma message", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	threadTS, snarkLevel := p.resolveChannelContext(r.Context(), envelope)
+	threadTS, snarkLevel := p.resolveChannelContext(ctx, envelope)
 
 	for _, seg := range segments {
 		switch seg.Kind {
 		case parser.KarmaSegmentUser:
-			result, err := p.karmaService.HandleAction(r.Context(), domain.KarmaAction{
+			result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
 				TeamID:       envelope.TeamID,
 				ActorUserID:  envelope.Event.User,
 				TargetUserID: seg.UserID,
@@ -195,14 +238,14 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if result.Message != "" {
-				if err := p.webClient.PostMessage(r.Context(), envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
+				if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
 					http.Error(w, "failed to post message", http.StatusBadGateway)
 					return
 				}
 			}
 
 		case parser.KarmaSegmentSubteam:
-			if err := p.handleSubteamKarma(r, envelope, seg, threadTS, snarkLevel); err != nil {
+			if err := p.handleSubteamKarma(ctx, envelope, seg, threadTS, snarkLevel); err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return
 			}
@@ -282,13 +325,12 @@ func messageEventDuplicatesAppMention(envelope EventEnvelope) bool {
 }
 
 func (p *EventsProcessor) handleSubteamKarma(
-	r *http.Request,
+	ctx context.Context,
 	envelope EventEnvelope,
 	seg parser.KarmaSegment,
 	threadTS string,
 	snarkLevel int,
 ) error {
-	ctx := r.Context()
 	if p.userGroups == nil {
 		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "Could not resolve user groups (not configured).", threadTS)
 	}
