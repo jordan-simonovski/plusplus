@@ -1,5 +1,15 @@
 # plusplus
 
+## 1.0.0
+
+### Major Changes
+
+- PlusPlus 1.0 is here, and it's now on the [Slack Marketplace](https://slack.com/marketplace/A0AS7F57GJH-plusplus-karma). From this release on, anything that changes how you use PlusPlus or would break a self-hosted install will come in a new major version.
+
+### Patch Changes
+
+- Self-hosted: version tags on the container image, like `1.0.0`, now always point at that release and never change after it ships.
+
 ## 0.3.0
 
 ### Minor Changes
