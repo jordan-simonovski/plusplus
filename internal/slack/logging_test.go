@@ -34,7 +34,7 @@ func TestKarmaFailureIsLoggedWithoutMessageText(t *testing.T) {
 	buf := captureLogs(t)
 
 	var calls []string
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls, fail: map[string]bool{"U3": true}}, nil, nil, &fakeWebClient{})
+	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U3": true}}, nil, nil, &fakeWebClient{})
 	if got := deliver(context.Background(), p, "Ev1", "<@U3> ++ for the secret launch plan"); got != http.StatusInternalServerError {
 		t.Fatalf("status %d, want 500", got)
 	}

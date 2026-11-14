@@ -3,7 +3,6 @@ package slack
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"plusplus/internal/domain"
@@ -66,7 +65,6 @@ type EventClaimer interface {
 type EventsProcessor struct {
 	events        EventClaimer
 	installs      InstallationRemover
-	signingSecret string
 	karmaService  KarmaActionService
 	settings      ChannelSettingsProvider
 	userGroups    UserGroupMembersLister
@@ -100,40 +98,21 @@ func (p *EventsProcessor) WithEventClaims(events EventClaimer) *EventsProcessor 
 }
 
 func NewEventsProcessor(
-	signingSecret string,
 	karmaService KarmaActionService,
 	settings ChannelSettingsProvider,
 	userGroups UserGroupMembersLister,
 	webClient WebClient,
 ) *EventsProcessor {
 	return &EventsProcessor{
-		signingSecret: signingSecret,
-		karmaService:  karmaService,
-		settings:      settings,
-		userGroups:    userGroups,
-		webClient:     webClient,
+		karmaService: karmaService,
+		settings:     settings,
+		userGroups:   userGroups,
+		webClient:    webClient,
 	}
 }
 
-func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-
-	timestamp := r.Header.Get("X-Slack-Request-Timestamp")
-	signature := r.Header.Get("X-Slack-Signature")
-	if err := VerifyRequestSignature(p.signingSecret, timestamp, signature, body); err != nil {
-		http.Error(w, "invalid signature", http.StatusUnauthorized)
-		return
-	}
-
+// HandleEvent handles one Events API delivery. body has already passed VerifiedBody.
+func (p *EventsProcessor) HandleEvent(w http.ResponseWriter, r *http.Request, body []byte) {
 	var envelope EventEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		http.Error(w, "invalid payload", http.StatusBadRequest)
@@ -158,8 +137,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 			}
 			slog.Info("installation removed", "team", envelope.TeamID, "kind", envelope.Event.Type)
 		}
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		ack(w)
 		return
 	}
 
@@ -168,8 +146,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		// Slack hangs up), so processing it again would double-apply or resurrect a
 		// reaction that was removed in between. Error retries are processed normally.
 		if r.Header.Get("X-Slack-Retry-Reason") == "http_timeout" {
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			ack(w)
 			return
 		}
 		// Finish the work even if Slack disconnects at its 3s deadline.
@@ -180,37 +157,32 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to apply reaction karma", http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		ack(w)
 		return
 	}
 
 	if envelope.Type != "event_callback" || !isSupportedKarmaEventType(envelope.Event.Type) {
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		ack(w)
 		return
 	}
 
 	// Only plain "message sent" events have no subtype (Slack omits it). Anything else
 	// (message_changed, bot_message, channel_join, file_share, …) must not apply karma.
 	if envelope.Event.Subtype != "" || envelope.Event.BotID != "" {
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		ack(w)
 		return
 	}
 
 	// Slack delivers both app_mention and message for the same post when the bot is @-mentioned.
 	// Process app_mention only; otherwise karma is applied twice.
 	if envelope.Event.Type == "message" && messageEventDuplicatesAppMention(envelope) {
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		ack(w)
 		return
 	}
 
 	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(stripBotMention(envelope)))
 	if len(segments) == 0 {
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		ack(w)
 		return
 	}
 
@@ -230,8 +202,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			ack(w)
 			return
 		}
 		claimed = true
@@ -291,8 +262,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	ack(w)
 }
 
 func (p *EventsProcessor) resolveChannelContext(ctx context.Context, envelope EventEnvelope) (threadTS string, snarkLevel int) {
@@ -679,4 +649,10 @@ func eventTime(envelope EventEnvelope) time.Time {
 		return time.Unix(envelope.EventTime, 0)
 	}
 	return time.Now()
+}
+
+// ack acknowledges an event to Slack.
+func ack(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }

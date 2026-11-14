@@ -18,13 +18,13 @@ import (
 )
 
 func TestEventsProcessorURLVerification(t *testing.T) {
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
 	payload := []byte(`{"type":"url_verification","challenge":"abc123"}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -42,7 +42,7 @@ func TestEventsProcessorURLVerification(t *testing.T) {
 
 func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -52,7 +52,7 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -70,7 +70,7 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 
 func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -80,7 +80,7 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -97,7 +97,7 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 
 func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -108,7 +108,7 @@ func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -120,7 +120,7 @@ func TestEventsProcessorSkipsMessageWhenSameAsAppMention(t *testing.T) {
 
 func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -130,7 +130,7 @@ func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -142,7 +142,7 @@ func TestEventsProcessorSkipsMessageChanged(t *testing.T) {
 
 func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -152,7 +152,7 @@ func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -171,7 +171,7 @@ func TestEventsProcessorAmbientMessagePostsMessage(t *testing.T) {
 func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 	web := &fakeWebClient{}
 	settings := &fakeReplyModeService{mode: ReplyModeChannel}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, settings, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, settings, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -181,7 +181,7 @@ func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -195,14 +195,14 @@ func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 }
 
 func TestEventsProcessorRejectsInvalidSignature(t *testing.T) {
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
 	payload := []byte(`{"type":"url_verification","challenge":"abc123"}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
 	req.Header.Set("X-Slack-Request-Timestamp", fmt.Sprintf("%d", time.Now().Unix()))
 	req.Header.Set("X-Slack-Signature", "v0=invalid")
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -212,7 +212,7 @@ func TestEventsProcessorRejectsInvalidSignature(t *testing.T) {
 func TestEventsProcessorSubteamKarmaCombinesLines(t *testing.T) {
 	web := &fakeWebClient{}
 	lister := &fakeUserGroupLister{ids: []string{"U2", "U3"}}
-	processor := NewEventsProcessor("secret", subteamKarmaFake{}, nil, lister, web)
+	processor := NewEventsProcessor(subteamKarmaFake{}, nil, lister, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -222,7 +222,7 @@ func TestEventsProcessorSubteamKarmaCombinesLines(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -238,7 +238,7 @@ func TestEventsProcessorSubteamKarmaCombinesLines(t *testing.T) {
 
 func TestEventsProcessorSubteamWithoutListerPostsNotice(t *testing.T) {
 	web := &fakeWebClient{}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -248,7 +248,7 @@ func TestEventsProcessorSubteamWithoutListerPostsNotice(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -261,7 +261,7 @@ func TestEventsProcessorSubteamWithoutListerPostsNotice(t *testing.T) {
 func TestEventsProcessorSubteamEmptyGroupPostsNotice(t *testing.T) {
 	web := &fakeWebClient{}
 	lister := &fakeUserGroupLister{ids: nil}
-	processor := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, lister, web)
+	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, lister, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
@@ -271,7 +271,7 @@ func TestEventsProcessorSubteamEmptyGroupPostsNotice(t *testing.T) {
 	addSlackSignatureHeaders(req, "secret", payload)
 
 	rec := httptest.NewRecorder()
-	processor.ProcessEvent(rec, req)
+	serveEvent(processor, rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
@@ -362,7 +362,7 @@ func TestEventsProcessorNeverCreditsTheBot(t *testing.T) {
 	}
 	for text, want := range cases {
 		var got []string
-		processor := NewEventsProcessor("secret", recordingKarmaService{targets: &got}, nil, nil, &fakeWebClient{})
+		processor := NewEventsProcessor(recordingKarmaService{targets: &got}, nil, nil, &fakeWebClient{})
 		payload := []byte(`{
 			"type":"event_callback",
 			"team_id":"T1",
@@ -371,7 +371,7 @@ func TestEventsProcessorNeverCreditsTheBot(t *testing.T) {
 		}`)
 		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
 		addSlackSignatureHeaders(req, "secret", payload)
-		processor.ProcessEvent(httptest.NewRecorder(), req)
+		serveEvent(processor, httptest.NewRecorder(), req)
 
 		if len(got) != len(want) || (len(want) > 0 && got[0] != want[0]) {
 			t.Fatalf("%q: expected targets %v, got %v", text, want, got)
@@ -401,7 +401,7 @@ func TestEventsProcessorGroupKarmaSizeLimit(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var calls []string
 			web := &fakeWebClient{}
-			p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, &fakeUserGroupLister{ids: tc.members}, web)
+			p := NewEventsProcessor(countingKarma{calls: &calls}, nil, &fakeUserGroupLister{ids: tc.members}, web)
 			if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++"); got != http.StatusOK {
 				t.Fatalf("status %d", got)
 			}
@@ -426,7 +426,7 @@ func TestEventsProcessorGroupKarmaSizeLimit(t *testing.T) {
 func TestEventsProcessorTooLargeGroupStillCreditsIndividuals(t *testing.T) {
 	var calls []string
 	web := &fakeWebClient{}
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, &fakeUserGroupLister{ids: groupMembers(51)}, web)
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, &fakeUserGroupLister{ids: groupMembers(51)}, web)
 	if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++ <@U9> ++"); got != http.StatusOK {
 		t.Fatalf("status %d", got)
 	}

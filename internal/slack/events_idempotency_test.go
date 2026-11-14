@@ -78,14 +78,14 @@ func deliver(ctx context.Context, p *EventsProcessor, eventID, text string) int 
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body)).WithContext(ctx)
 	addSlackSignatureHeaders(req, "secret", body)
 	rec := httptest.NewRecorder()
-	p.ProcessEvent(rec, req)
+	serveEvent(p, rec, req)
 	return rec.Code
 }
 
 func TestTypedKarmaRetryAppliesOnce(t *testing.T) {
 	var calls []string
 	web := &fakeWebClient{}
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, web).WithEventClaims(newMemClaims())
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, web).WithEventClaims(newMemClaims())
 
 	for i, want := range []int{http.StatusOK, http.StatusOK} {
 		if got := deliver(context.Background(), p, "Ev1", "<@U3> ++"); got != want {
@@ -101,7 +101,7 @@ func TestTypedKarmaClaimErrorAppliesNothing(t *testing.T) {
 	var calls []string
 	claims := newMemClaims()
 	claims.err = errors.New("dynamo down")
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).WithEventClaims(claims)
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).WithEventClaims(claims)
 
 	if got := deliver(context.Background(), p, "Ev1", "<@U3> ++"); got != http.StatusInternalServerError {
 		t.Fatalf("status %d, want 500", got)
@@ -116,7 +116,7 @@ func TestTypedKarmaRecordFailureReleasesClaim(t *testing.T) {
 	claims := newMemClaims()
 	karma := countingKarma{calls: &calls}
 
-	failing := NewEventsProcessor("secret", karma, nil, nil, &fakeWebClient{}).
+	failing := NewEventsProcessor(karma, nil, nil, &fakeWebClient{}).
 		WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5).
 		WithEventClaims(claims)
 	if got := deliver(context.Background(), failing, "Ev1", "<@U3> ++"); got != http.StatusInternalServerError {
@@ -127,7 +127,7 @@ func TestTypedKarmaRecordFailureReleasesClaim(t *testing.T) {
 	}
 
 	// Slack's retry, once storage is back, is processed.
-	healthy := NewEventsProcessor("secret", karma, nil, nil, &fakeWebClient{}).
+	healthy := NewEventsProcessor(karma, nil, nil, &fakeWebClient{}).
 		WithReactions(defaultTiers{}, memReactionState{}, 5).
 		WithEventClaims(claims)
 	if got := deliver(context.Background(), healthy, "Ev1", "<@U3> ++"); got != http.StatusOK {
@@ -155,7 +155,7 @@ func TestTypedKarmaKeepsClaimAfterKarmaStarts(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var calls []string
 			claims := newMemClaims()
-			p := NewEventsProcessor("secret", countingKarma{calls: &calls, fail: tc.fail}, nil, nil, tc.web).WithEventClaims(claims)
+			p := NewEventsProcessor(countingKarma{calls: &calls, fail: tc.fail}, nil, nil, tc.web).WithEventClaims(claims)
 
 			if got := deliver(context.Background(), p, "Ev1", "<@U3> ++ <@U4> ++"); got != tc.wantFirst {
 				t.Fatalf("first delivery: status %d, want %d", got, tc.wantFirst)
@@ -175,7 +175,7 @@ func TestTypedKarmaKeepsClaimAfterKarmaStarts(t *testing.T) {
 
 func TestTypedKarmaWithoutEventIDIsProcessed(t *testing.T) {
 	var calls []string
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).WithEventClaims(newMemClaims())
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).WithEventClaims(newMemClaims())
 
 	for range 2 {
 		if got := deliver(context.Background(), p, "", "<@U3> ++"); got != http.StatusOK {
@@ -202,7 +202,7 @@ func (c *ctxWeb) PostMessage(ctx context.Context, team, channel, text, threadTS 
 func TestTypedKarmaSurvivesRequestCancellation(t *testing.T) {
 	var calls []string
 	web := &ctxWeb{}
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, web).WithEventClaims(newMemClaims())
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, web).WithEventClaims(newMemClaims())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -221,14 +221,14 @@ func TestTypedKarmaReleaseFailureKeepsClaim(t *testing.T) {
 	claims.releaseErr = errors.New("dynamo down")
 	karma := countingKarma{calls: &calls}
 
-	failing := NewEventsProcessor("secret", karma, nil, nil, &fakeWebClient{}).
+	failing := NewEventsProcessor(karma, nil, nil, &fakeWebClient{}).
 		WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5).
 		WithEventClaims(claims)
 	if got := deliver(context.Background(), failing, "Ev1", "<@U3> ++"); got != http.StatusInternalServerError {
 		t.Fatalf("status %d, want the original 500", got)
 	}
 
-	healthy := NewEventsProcessor("secret", karma, nil, nil, &fakeWebClient{}).
+	healthy := NewEventsProcessor(karma, nil, nil, &fakeWebClient{}).
 		WithReactions(defaultTiers{}, memReactionState{}, 5).
 		WithEventClaims(claims)
 	if got := deliver(context.Background(), healthy, "Ev1", "<@U3> ++"); got != http.StatusOK || len(calls) != 0 {
@@ -242,7 +242,7 @@ func TestTypedKarmaGroupAwardFailingPartway(t *testing.T) {
 	var calls []string
 	web := &fakeWebClient{}
 	groups := &fakeUserGroupLister{ids: []string{"U3", "U4", "U5"}}
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls, fail: map[string]bool{"U4": true}}, nil, groups, web).
+	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U4": true}}, nil, groups, web).
 		WithEventClaims(newMemClaims())
 
 	if got := deliver(context.Background(), p, "Ev1", "<!subteam^S1|@team> ++"); got != http.StatusBadGateway {

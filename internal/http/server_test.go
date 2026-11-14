@@ -10,15 +10,12 @@ import (
 
 type readAllHandler struct{}
 
-func (readAllHandler) HandleEvents(w http.ResponseWriter, r *http.Request) {
+func (readAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.ReadAll(r.Body); err != nil {
 		http.Error(w, "too large", http.StatusRequestEntityTooLarge)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-}
-func (readAllHandler) HandleCommand(w http.ResponseWriter, r *http.Request) {
-	readAllHandler{}.HandleEvents(w, r)
 }
 
 func TestHandlerCapsRequestBody(t *testing.T) {

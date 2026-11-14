@@ -30,7 +30,7 @@ func sendEvent(p *EventsProcessor, event string, sign bool) int {
 		addSlackSignatureHeaders(req, "secret", body)
 	}
 	rec := httptest.NewRecorder()
-	p.ProcessEvent(rec, req)
+	serveEvent(p, rec, req)
 	return rec.Code
 }
 
@@ -53,7 +53,7 @@ func TestUninstallEventsRemoveTheBotToken(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			remover := &recordingRemover{err: tc.storeErr}
-			p := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, &fakeWebClient{}).WithInstallationRemover(remover)
+			p := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, &fakeWebClient{}).WithInstallationRemover(remover)
 			if got := sendEvent(p, tc.event, tc.sign); got != tc.wantStatus {
 				t.Fatalf("status %d, want %d", got, tc.wantStatus)
 			}
@@ -71,7 +71,7 @@ func TestUninstallEventsRemoveTheBotToken(t *testing.T) {
 
 // Single-workspace mode has no token store; the events are acknowledged and ignored.
 func TestUninstallWithoutStoreIsAcknowledged(t *testing.T) {
-	p := NewEventsProcessor("secret", fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
+	p := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, &fakeWebClient{})
 	if got := sendEvent(p, `{"type":"app_uninstalled"}`, true); got != http.StatusOK {
 		t.Fatalf("status %d, want 200", got)
 	}
@@ -81,7 +81,7 @@ func TestUninstallWithoutStoreIsAcknowledged(t *testing.T) {
 func TestUninstallSkipsKarmaHandling(t *testing.T) {
 	var calls []string
 	claims := newMemClaims()
-	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).
 		WithEventClaims(claims).
 		WithInstallationRemover(&recordingRemover{})
 	if got := sendEvent(p, `{"type":"app_uninstalled"}`, true); got != http.StatusOK {

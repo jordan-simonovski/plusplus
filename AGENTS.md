@@ -44,8 +44,8 @@ attached with `With…` methods in `cmd/server/main.go`.
 
 ## How a karma message flows
 
-1. Slack posts to `/slack/events`. `EventsProcessor.ProcessEvent` reads the raw body and
-   verifies the signature before parsing anything.
+1. Slack posts to `/slack/events`. `slack.VerifiedBody` reads the raw body and verifies
+   the signature, then hands the body to `EventsProcessor.HandleEvent`.
 2. `parser.ParseKarmaSegments` extracts targets and symbol runs. The bot's own mention is
    stripped first.
 3. `domain.KarmaService.HandleAction` applies the rules (minimum two symbols, per-action
@@ -61,9 +61,10 @@ Reactions take the same route through `handleReaction`, with per-reactor state i
 Each rule protects users or operators. If a task seems to require breaking one, stop and
 say so instead of working around it.
 
-1. **Verify before parsing.** Every Slack-facing handler checks the request signature
-   against the raw body before it decodes or acts on the payload. Unsigned requests get
-   401 and no side effects.
+1. **Verify before parsing.** Every Slack-facing handler is mounted behind
+   `slack.VerifiedBody` (see `slackServer` in `cmd/server/main.go`), which checks the
+   request signature against the raw body before the handler sees it. Unsigned requests
+   get 401 and no side effects. A new Slack endpoint goes through it too.
 2. **Workspaces are isolated.** Every stored row is keyed by `team_id`, and every read and
    write uses the team ID from the verified payload. In OAuth mode a workspace with no
    stored token fails; it never borrows the fallback token or another workspace's.
