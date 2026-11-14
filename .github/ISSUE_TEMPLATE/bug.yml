@@ -1,0 +1,43 @@
+name: Bug report
+description: Something PlusPlus does wrong
+labels: [bug]
+body:
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Which PlusPlus?
+      options:
+        - The hosted app (from the Slack Marketplace or pluspluskarma.dev)
+        - Self-hosted
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown at the bottom of the `/plusplus-settings` panel, for example `PlusPlus v1.1.0`.
+  - type: textarea
+    id: input
+    attributes:
+      label: What did you type or react with?
+      description: The message (for example `@plusplus @sam ++`), emoji reaction or slash command.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server logs (self-hosted only)
+      description: The relevant log lines. Remove any tokens, secrets or message text first.
+      render: text

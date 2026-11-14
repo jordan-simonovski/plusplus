@@ -279,7 +279,7 @@ The quickest setup is to create the app from
 - In OAuth mode, set `SLACK_OAUTH_SCOPES` to the same comma-separated scope list.
   It defaults to the Marketplace set, which has no `*:history` scopes.
 
-See the main [README](../README.md#slack-app-setup-dev) for the full Slack app walkthrough.
+See the main [README](../README.md#slack-app-for-development) for the full Slack app walkthrough.
 
 ---
 
