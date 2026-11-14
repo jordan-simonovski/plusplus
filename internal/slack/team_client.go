@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"plusplus/internal/domain"
 )
@@ -18,10 +19,12 @@ type BotTokenStore interface {
 type TeamResolvingClient struct {
 	store         BotTokenStore
 	fallbackToken string
+	// httpClient is shared by every workspace's APIClient so connections are reused.
+	httpClient *http.Client
 }
 
 func NewTeamResolvingClient(store BotTokenStore, fallbackToken string) *TeamResolvingClient {
-	return &TeamResolvingClient{store: store, fallbackToken: fallbackToken}
+	return &TeamResolvingClient{store: store, fallbackToken: fallbackToken, httpClient: newHTTPClient()}
 }
 
 func (c *TeamResolvingClient) apiClient(ctx context.Context, teamID string) (*APIClient, error) {
@@ -38,12 +41,12 @@ func (c *TeamResolvingClient) apiClient(ctx context.Context, teamID string) (*AP
 		if tok == "" {
 			return nil, fmt.Errorf("empty bot token for workspace %s", teamID)
 		}
-		return NewAPIClient(tok), nil
+		return newAPIClient(tok, c.httpClient), nil
 	}
 
 	// Single-workspace / dev: no store, fall back to the static bot token.
 	if c.fallbackToken != "" {
-		return NewAPIClient(c.fallbackToken), nil
+		return newAPIClient(c.fallbackToken, c.httpClient), nil
 	}
 	return nil, fmt.Errorf("no bot token for workspace %s", teamID)
 }
