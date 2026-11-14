@@ -249,7 +249,9 @@ The quickest setup is to create the app from
 `reaction_added`, `reaction_removed`.
 
 - `channels:history` / `groups:history` + `message.*` events give plain `@someone ++`
-  karma. Leave them out for reactions and `@plusplus @someone ++` only.
+  karma. Leave them out for reactions and `@plusplus @someone ++` only. Slack only
+  sends a bot the messages from channels it's a member of, so plain `@someone ++`
+  does nothing until someone runs `/invite @plusplus` in that channel.
 - `reactions:read` + `reaction_*` events give emoji reaction karma.
 - In OAuth mode, set `SLACK_OAUTH_SCOPES` to the same comma-separated scope list.
   It defaults to the Marketplace set, which has no `*:history` scopes.
@@ -282,5 +284,6 @@ history scopes and `message.*` events.
 
 1. `curl https://<your-host>/healthz` → `{"status":"ok",...}`.
 2. Run `/plusplus-leaderboard` in Slack and confirm a response.
-3. In a channel with the bot, send `@someone +++` and confirm karma persists.
+3. Invite the bot to a channel (`/invite @plusplus`), send `@someone +++` there and
+   confirm karma persists. If nothing happens, the bot probably isn't in the channel.
 4. React to someone's message with 🔥 and confirm a threaded "gained 4 karma" reply.
