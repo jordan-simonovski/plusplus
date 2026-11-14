@@ -14,7 +14,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 11 | [Dependabot and pinned actions/images](11-supply-chain-pins.md) | Mutable tags in CI and the Dockerfile | S |
 | 13 | [Split `HandleEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M |
 | 15 | [Dead code and duplication sweep](15-dead-code-sweep.md) | Unused exports, duplicated constants | S |
 | 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M |
@@ -22,13 +21,8 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 ### Running items in parallel
 
-Only these are safe to have open at the same time as other items, once 01 and 02 have
-landed:
-
-- **11** touches only CI and image configuration.
-
-Everything else shares `internal/slack/events_processor.go`, `cmd/server/main.go` or the
-handler tests, so run those strictly in order.
+Nothing left can run in parallel: 13, 15 and 16 all edit the event handler or its tests,
+so run them in order.
 
 Sizes: S is under about 150 changed lines, M is up to about 400.
 
