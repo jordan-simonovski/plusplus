@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"plusplus/internal/domain"
 	"plusplus/internal/parser"
@@ -141,6 +141,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
 		defer cancel()
 		if err := p.handleReaction(ctx, envelope); err != nil {
+			slog.Error("reaction karma failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 			http.Error(w, "failed to apply reaction karma", http.StatusInternalServerError)
 			return
 		}
@@ -189,6 +190,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 	if p.events != nil && envelope.EventID != "" {
 		ok, err := p.events.ClaimEvent(ctx, envelope.TeamID, envelope.EventID)
 		if err != nil {
+			slog.Error("claim event failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 			http.Error(w, "failed to claim event", http.StatusInternalServerError)
 			return
 		}
@@ -209,6 +211,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := p.reactionState.RecordKarmaTargets(ctx, envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
+			slog.Error("record karma message failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 			if claimed {
 				p.releaseEvent(ctx, envelope)
 			}
@@ -231,12 +234,14 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 				SnarkLevel:   snarkLevel,
 			})
 			if err != nil {
+				slog.Error("apply karma failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 				http.Error(w, "failed to apply karma", http.StatusInternalServerError)
 				return
 			}
 
 			if result.Message != "" {
 				if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
+					slog.Error("post karma reply failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 					http.Error(w, "failed to post message", http.StatusBadGateway)
 					return
 				}
@@ -244,6 +249,7 @@ func (p *EventsProcessor) ProcessEvent(w http.ResponseWriter, r *http.Request) {
 
 		case parser.KarmaSegmentSubteam:
 			if err := p.handleSubteamKarma(ctx, envelope, seg, threadTS, snarkLevel); err != nil {
+				slog.Error("user group karma failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return
 			}
@@ -262,6 +268,7 @@ func (p *EventsProcessor) resolveChannelContext(ctx context.Context, envelope Ev
 
 	mode, level, err := p.settings.GetChannelSettings(ctx, envelope.TeamID, envelope.Event.Channel)
 	if err != nil {
+		slog.Warn("channel settings unavailable, using defaults", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 		return defaultThreadTS(envelope.Event), snarkLevel
 	}
 
@@ -335,6 +342,7 @@ func (p *EventsProcessor) handleSubteamKarma(
 
 	members, err := p.userGroups.ListUserGroupMembers(ctx, envelope.TeamID, seg.SubteamID)
 	if err != nil {
+		slog.Warn("user group members unavailable", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "Could not load members for that user group.", threadTS)
 	}
 
@@ -387,7 +395,7 @@ func (p *EventsProcessor) releaseEvent(ctx context.Context, envelope EventEnvelo
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := p.events.ReleaseEvent(ctx, envelope.TeamID, envelope.EventID); err != nil {
-		log.Printf("events: could not release event %s for team %s: %v", envelope.EventID, envelope.TeamID, err)
+		slog.Warn("could not release event claim", "team", envelope.TeamID, "kind", envelope.Event.Type, "event_id", envelope.EventID, "err", err)
 	}
 }
 
@@ -397,7 +405,7 @@ func (p *EventsProcessor) postBestEffort(ctx context.Context, envelope EventEnve
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, text, threadTS); err != nil {
-		log.Printf("events: could not post partial reply for team %s: %v", envelope.TeamID, err)
+		slog.Warn("could not post partial reply", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 	}
 }
 
@@ -416,7 +424,10 @@ func (p *EventsProcessor) observeGroupAward(ctx context.Context, teamID, actorID
 	if sign == 0 {
 		return ""
 	}
-	line, _ := obs.ObserveGroupAward(ctx, teamID, actorID, groupID, sign, snarkLevel)
+	line, err := obs.ObserveGroupAward(ctx, teamID, actorID, groupID, sign, snarkLevel)
+	if err != nil {
+		slog.Warn("karma war store failed", "team", teamID, "kind", "group_award", "err", err)
+	}
 	return line
 }
 
@@ -511,6 +522,8 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 	if p.settings != nil {
 		if _, level, err := p.settings.GetChannelSettings(ctx, team, channel); err == nil {
 			snarkLevel = domain.NormalizeSnarkLevel(level)
+		} else {
+			slog.Warn("channel settings unavailable, using defaults", "team", team, "kind", ev.Type, "err", err)
 		}
 	}
 
@@ -545,7 +558,7 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 	}
 	// Karma is applied; a retry couldn't post the reply anyway (it would see no change).
 	if err := p.webClient.PostMessage(ctx, team, channel, strings.Join(lines, "\n"), ts); err != nil {
-		log.Printf("reaction karma: reply failed for team %s channel %s: %v", team, channel, err)
+		slog.Warn("reaction karma reply failed", "team", team, "kind", ev.Type, "channel", channel, "err", err)
 	}
 	return nil
 }
@@ -572,7 +585,7 @@ func (p *EventsProcessor) reverseKarma(ctx context.Context, team, reactor string
 			SnarkLevel:   snarkLevel,
 			SkipWar:      true,
 		}); err != nil {
-			log.Printf("reaction karma: could not reverse karma for team %s: %v", team, err)
+			slog.Warn("could not reverse reaction karma", "team", team, "kind", "reaction", "err", err)
 		}
 	}
 }
@@ -605,6 +618,6 @@ func (p *EventsProcessor) restoreReaction(ctx context.Context, team, channel, ts
 		_, err = p.reactionState.RemoveReaction(ctx, team, channel, ts, reactor, emoji)
 	}
 	if err != nil {
-		log.Printf("reaction karma: could not restore state for team %s channel %s: %v", team, channel, err)
+		slog.Warn("could not restore reaction state", "team", team, "kind", "reaction", "channel", channel, "err", err)
 	}
 }

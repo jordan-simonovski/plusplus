@@ -99,6 +99,9 @@ say so instead of working around it.
   shown to Slack users must come from `InputError` or from fixed copy, never from a raw
   error. (`respondSnarkText` and the user-group path still echo an error today; do not
   copy that.)
+- Every path that returns a 5xx logs the cause once with `slog.Error`, with `team`, `kind`
+  (event type, slash command, `interaction` or `oauth`) and `err`. A deliberately
+  swallowed error gets `slog.Warn` with the same attributes. Never log message text.
 - Tests live beside the code, use hand-written fakes (see
   `internal/slack/events_processor_test.go`), and stub HTTP with a `RoundTripper` (see
   `roundTripFunc` in `internal/slack/oauth_callback_test.go`). No mocking or assertion

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -92,6 +93,7 @@ func (h *OAuthHandler) Install(w http.ResponseWriter, r *http.Request) {
 
 	state, err := newSignedOAuthState(h.stateSecret)
 	if err != nil {
+		slog.Error("mint oauth state failed", "kind", "oauth", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -144,11 +146,13 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	teamID, token, err := h.exchangeCode(r.Context(), code, redirectURI)
 	if err != nil {
+		slog.Error("oauth code exchange failed", "kind", "oauth", "err", err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
 	if err := h.installer.UpsertInstallation(r.Context(), teamID, token); err != nil {
+		slog.Error("save installation failed", "team", teamID, "kind", "oauth", "err", err)
 		http.Error(w, "failed to save installation", http.StatusInternalServerError)
 		return
 	}

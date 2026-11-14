@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -62,6 +63,7 @@ func (s *DynamoInteractionStore) LoadRecent(ctx context.Context, teamID string) 
 	var window domain.InteractionWindow
 	if err := json.Unmarshal([]byte(item.RecentJSON), &window); err != nil {
 		// Corrupt blob: start fresh rather than wedging karma replies.
+		slog.Warn("corrupt karma war window, starting fresh", "team", teamID, "err", err)
 		return domain.InteractionWindow{}, nil
 	}
 	return window, nil

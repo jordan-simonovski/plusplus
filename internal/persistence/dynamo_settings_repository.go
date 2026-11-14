@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -216,7 +216,7 @@ func (r *DynamoSettingsRepository) getReactionOverrides(ctx context.Context, tea
 	}
 	var overrides domain.TierOverrides
 	if err := json.Unmarshal([]byte(attr.Value), &overrides); err != nil {
-		log.Printf("settings: corrupt reaction_tiers for team %s scope %s, using defaults: %v", teamID, scope, err)
+		slog.Warn("corrupt reaction_tiers, using defaults", "team", teamID, "scope", scope, "err", err)
 		return nil, nil // fall back to defaults rather than breaking karma
 	}
 	return overrides, nil

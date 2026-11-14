@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -143,6 +143,7 @@ func (p *CommandsProcessor) respondLeaderboard(w http.ResponseWriter, r *http.Re
 		TeamID: payload.TeamID,
 	})
 	if err != nil {
+		slog.Error("build leaderboard failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		http.Error(w, "failed to build leaderboard", http.StatusInternalServerError)
 		return
 	}
@@ -181,6 +182,7 @@ func (p *CommandsProcessor) respondSettings(w http.ResponseWriter, r *http.Reque
 func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r *http.Request, payload SlashCommandPayload) {
 	current, err := p.settingsService.GetSnarkLevel(r.Context(), payload.TeamID, payload.ChannelID)
 	if err != nil {
+		slog.Error("load settings failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		http.Error(w, "failed to load settings", http.StatusInternalServerError)
 		return
 	}
@@ -190,6 +192,8 @@ func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r 
 	if p.reactions != nil {
 		if summary, err := p.reactions.Describe(r.Context(), payload.TeamID, payload.ChannelID); err == nil {
 			emojiSummary = summary
+		} else {
+			slog.Warn("emoji summary unavailable for settings panel", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		}
 	}
 
@@ -214,6 +218,7 @@ func (p *CommandsProcessor) respondReplyMode(w http.ResponseWriter, r *http.Requ
 
 	msg, err := p.settingsService.SetReplyMode(r.Context(), payload.TeamID, payload.ChannelID, payload.UserID, mode)
 	if err != nil {
+		slog.Error("update reply mode failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		http.Error(w, "failed to update settings", http.StatusInternalServerError)
 		return
 	}
@@ -280,7 +285,7 @@ func (p *CommandsProcessor) respondEmoji(w http.ResponseWriter, r *http.Request,
 	case errors.As(err, &input):
 		msg = input.Msg + ". Example: `/plusplus-settings emoji 3 :partyparrot:`."
 	case err != nil:
-		log.Printf("emoji settings: team %s: %v", payload.TeamID, err)
+		slog.Error("emoji settings failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		msg = "Couldn't update karma emojis just now. Please try again."
 	}
 	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: msg})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,8 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -53,7 +56,7 @@ func main() {
 	var oauthInstall, oauthCallback http.HandlerFunc
 	if cfg.SlackClientID != "" && workspaceRepo != nil {
 		oauth := appslack.NewOAuthHandler(cfg.SlackClientID, cfg.SlackClientSecret, cfg.PublicBaseURL, workspaceRepo, cfg.SlackSigningSecret, cfg.SlackOAuthScopes)
-		log.Printf("oauth: /slack/install requests scopes %q (set SLACK_OAUTH_SCOPES to change)", oauth.Scopes())
+		slog.Info("oauth enabled; set SLACK_OAUTH_SCOPES to change the scopes /slack/install requests", "scopes", oauth.Scopes())
 		oauthInstall = oauth.Install
 		oauthCallback = oauth.Callback
 	}
@@ -83,7 +86,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("server listening on :%s", cfg.Port)
+		slog.Info("server listening", "port", cfg.Port)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("http server failed: %v", err)
 		}
@@ -97,7 +100,7 @@ func main() {
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("graceful shutdown failed: %v", err)
+		slog.Error("graceful shutdown failed", "err", err)
 		os.Exit(1)
 	}
 }

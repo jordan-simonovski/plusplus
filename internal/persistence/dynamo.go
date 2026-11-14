@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -67,7 +67,7 @@ func NewDynamoClient(ctx context.Context, cfg appconfig.Config) (*dynamodb.Clien
 // EnsureTables creates the karma, settings, and workspaces tables if they do not
 // already exist, then waits for each to become ACTIVE. Safe to call on every boot.
 func EnsureTables(ctx context.Context, client *dynamodb.Client, cfg appconfig.Config) error {
-	log.Printf("dynamodb: ensuring tables")
+	slog.Info("dynamodb: ensuring tables")
 
 	creates := []*dynamodb.CreateTableInput{
 		{
@@ -126,12 +126,12 @@ func EnsureTables(ctx context.Context, client *dynamodb.Client, cfg appconfig.Co
 		// belongs to whoever provisioned it, and this call needs dynamodb:UpdateTimeToLive.
 		if created && aws.ToString(input.TableName) == cfg.KarmaTable {
 			if err := enableTTL(ctx, client, cfg.KarmaTable); err != nil {
-				log.Printf("dynamodb: could not enable TTL on %s (event-claim rows will not expire): %v", cfg.KarmaTable, err)
+				slog.Warn("dynamodb: could not enable TTL; event-claim rows will not expire", "table", cfg.KarmaTable, "err", err)
 			}
 		}
 	}
 
-	log.Printf("dynamodb: tables ready")
+	slog.Info("dynamodb: tables ready")
 	return nil
 }
 
@@ -148,7 +148,7 @@ func ensureTable(ctx context.Context, client *dynamodb.Client, input *dynamodb.C
 	case err == nil:
 		return false, waitActive(ctx, client, input.TableName)
 	case isNotFound(err):
-		log.Printf("dynamodb: table %s missing, creating", name)
+		slog.Info("dynamodb: table missing, creating", "table", name)
 		if _, err := client.CreateTable(ctx, input); err != nil {
 			var inUse *types.ResourceInUseException
 			if errors.As(err, &inUse) {
