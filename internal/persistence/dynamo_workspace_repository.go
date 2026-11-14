@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -30,7 +31,7 @@ func (r *DynamoWorkspaceRepository) UpsertInstallation(ctx context.Context, team
 	if teamID == "" {
 		return fmt.Errorf("team id empty")
 	}
-	ct, err := r.enc.Encrypt([]byte(botToken))
+	ct, err := r.enc.Encrypt([]byte(botToken), []byte(teamID))
 	if err != nil {
 		return fmt.Errorf("encrypt token: %w", err)
 	}
@@ -69,11 +70,45 @@ func (r *DynamoWorkspaceRepository) GetBotToken(ctx context.Context, teamID stri
 	if !ok {
 		return "", domain.ErrNotFound
 	}
-	pt, err := r.enc.Decrypt(blobAttr.Value)
-	if err != nil {
+	// The team ID is the AAD, so a ciphertext copied into another workspace's row fails
+	// to decrypt instead of handing that workspace someone else's token.
+	pt, err := r.enc.Decrypt(blobAttr.Value, []byte(teamID))
+	if err == nil {
+		return string(pt), nil
+	}
+	// ponytail: rows written before AAD are upgraded on first read; drop this fallback once none are left.
+	pt, legacyErr := r.enc.Decrypt(blobAttr.Value, nil)
+	if legacyErr != nil {
 		return "", fmt.Errorf("decrypt token: %w", err)
 	}
+	r.upgradeLegacyToken(ctx, teamID, blobAttr.Value, pt)
 	return string(pt), nil
+}
+
+// upgradeLegacyToken re-encrypts a token stored without AAD so the row is bound to its
+// team. It only replaces the exact ciphertext it read, so a reinstall in between wins.
+// Best effort: on failure the row stays legacy and is retried on the next read.
+func (r *DynamoWorkspaceRepository) upgradeLegacyToken(ctx context.Context, teamID string, oldBlob, token []byte) {
+	ct, err := r.enc.Encrypt(token, []byte(teamID))
+	if err == nil {
+		_, err = r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+			TableName: aws.String(r.table),
+			Key: map[string]types.AttributeValue{
+				attrTeamID: &types.AttributeValueMemberS{Value: teamID},
+			},
+			UpdateExpression:         aws.String("SET #token = :new"),
+			ConditionExpression:      aws.String("#token = :old"),
+			ExpressionAttributeNames: map[string]string{"#token": attrBotToken},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":new": &types.AttributeValueMemberB{Value: ct},
+				":old": &types.AttributeValueMemberB{Value: oldBlob},
+			},
+		})
+	}
+	var changed *types.ConditionalCheckFailedException
+	if err != nil && !errors.As(err, &changed) {
+		slog.Warn("could not upgrade legacy token encryption", "team", teamID, "err", err)
+	}
 }
 
 // RemoveInstallation forgets a workspace's bot token when the app is uninstalled. The row

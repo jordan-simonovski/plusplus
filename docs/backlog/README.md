@@ -14,7 +14,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 09 | [Bind token ciphertext to its workspace](09-token-aad.md) | Stored tokens can be swapped between workspaces undetected | S |
 | 11 | [Dependabot and pinned actions/images](11-supply-chain-pins.md) | Mutable tags in CI and the Dockerfile | S |
 | 12 | [One signature gate for Slack endpoints](12-transport-middleware.md) | Verification is copy-pasted three times | M |
 | 13 | [Split `ProcessEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M |
@@ -28,7 +27,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 Only these are safe to have open at the same time as other items, once 01 and 02 have
 landed:
 
-- **09** touches only `internal/crypto` and the workspace repository.
 - **19** touches only `terraform/dynamodb.tf`. Not alongside 03, which edits the same file.
 - **11** touches only CI and image configuration.
 

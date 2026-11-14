@@ -381,3 +381,82 @@ func TestDynamoWorkspaceRemoveInstallationIntegration(t *testing.T) {
 		t.Fatalf("removing an unknown workspace created %v (err %v)", row.Item, err)
 	}
 }
+
+func putRawToken(t *testing.T, ctx context.Context, client *dynamodb.Client, table, team string, blob []byte) {
+	t.Helper()
+	if _, err := client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(table),
+		Item: map[string]types.AttributeValue{
+			attrTeamID:   &types.AttributeValueMemberS{Value: team},
+			attrBotToken: &types.AttributeValueMemberB{Value: blob},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func rawToken(t *testing.T, ctx context.Context, client *dynamodb.Client, table, team string) []byte {
+	t.Helper()
+	out, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(table),
+		Key:       map[string]types.AttributeValue{attrTeamID: &types.AttributeValueMemberS{Value: team}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out.Item[attrBotToken].(*types.AttributeValueMemberB).Value
+}
+
+// A token's ciphertext is bound to its workspace: copied into another workspace's row it
+// no longer decrypts.
+func TestDynamoWorkspaceTokenBoundToTeamIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	enc := testEncryptor(t, 1)
+	repo := NewDynamoWorkspaceRepository(client, cfg.WorkspacesTable, enc)
+	teamA, teamB := uniqueTeam("T-aad-a"), uniqueTeam("T-aad-b")
+
+	if err := repo.UpsertInstallation(ctx, teamA, "xoxb-team-a"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repo.GetBotToken(ctx, teamA); err != nil || got != "xoxb-team-a" {
+		t.Fatalf("round trip: %q, %v", got, err)
+	}
+
+	putRawToken(t, ctx, client, cfg.WorkspacesTable, teamB, rawToken(t, ctx, client, cfg.WorkspacesTable, teamA))
+	if got, err := repo.GetBotToken(ctx, teamB); err == nil || got != "" {
+		t.Fatalf("team A's ciphertext in team B's row: got %q, %v; want an error", got, err)
+	}
+}
+
+// Rows written before tokens were bound to their team still work, and are upgraded on read.
+func TestDynamoWorkspaceLegacyTokenUpgradeIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	enc := testEncryptor(t, 1)
+	repo := NewDynamoWorkspaceRepository(client, cfg.WorkspacesTable, enc)
+	team := uniqueTeam("T-aad-legacy")
+
+	legacy, err := enc.Encrypt([]byte("xoxb-legacy"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	putRawToken(t, ctx, client, cfg.WorkspacesTable, team, legacy)
+
+	if got, err := repo.GetBotToken(ctx, team); err != nil || got != "xoxb-legacy" {
+		t.Fatalf("legacy row: %q, %v", got, err)
+	}
+	upgraded := rawToken(t, ctx, client, cfg.WorkspacesTable, team)
+	if _, err := enc.Decrypt(upgraded, nil); err == nil {
+		t.Fatal("row still decrypts without AAD after the upgrade read")
+	}
+	if got, err := repo.GetBotToken(ctx, team); err != nil || got != "xoxb-legacy" {
+		t.Fatalf("upgraded row: %q, %v", got, err)
+	}
+
+	tampered := uniqueTeam("T-aad-tampered")
+	flipped := append([]byte(nil), legacy...)
+	flipped[len(flipped)-1] ^= 0x01
+	putRawToken(t, ctx, client, cfg.WorkspacesTable, tampered, flipped)
+	if got, err := repo.GetBotToken(ctx, tampered); err == nil || got != "" {
+		t.Fatalf("tampered legacy row: got %q, %v; want an error", got, err)
+	}
+}

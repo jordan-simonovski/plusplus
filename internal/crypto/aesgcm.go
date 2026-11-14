@@ -45,20 +45,21 @@ func ParseKeyBase64(s string) ([]byte, error) {
 	return key, nil
 }
 
-// Encrypt returns nonce || ciphertext.
-func (e *AESEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
+// Encrypt returns nonce || ciphertext. aad is authenticated but not encrypted: Decrypt only
+// succeeds with the same aad, which binds the ciphertext to its context (e.g. a team ID).
+func (e *AESEncryptor) Encrypt(plaintext, aad []byte) ([]byte, error) {
 	nonce := make([]byte, e.gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	return e.gcm.Seal(nonce, nonce, plaintext, nil), nil
+	return e.gcm.Seal(nonce, nonce, plaintext, aad), nil
 }
 
-// Decrypt reverses Encrypt.
-func (e *AESEncryptor) Decrypt(blob []byte) ([]byte, error) {
+// Decrypt reverses Encrypt; aad must match what Encrypt was given.
+func (e *AESEncryptor) Decrypt(blob, aad []byte) ([]byte, error) {
 	ns := e.gcm.NonceSize()
 	if len(blob) < ns {
 		return nil, fmt.Errorf("ciphertext too short")
 	}
-	return e.gcm.Open(nil, blob[:ns], blob[ns:], nil)
+	return e.gcm.Open(nil, blob[:ns], blob[ns:], aad)
 }
