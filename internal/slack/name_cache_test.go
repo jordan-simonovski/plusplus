@@ -82,3 +82,56 @@ func TestCachedNameResolverDoesNotCacheErrors(t *testing.T) {
 		t.Fatalf("expected 2 calls (error not cached), got %d", inner.calls)
 	}
 }
+
+func TestCachedNameResolverEvictsExpiredEntriesWhenFull(t *testing.T) {
+	r := NewCachedNameResolver(&countingLookup{name: "Jane"}, time.Minute)
+	r.maxEntries = 3
+	now := time.Unix(0, 0)
+	r.now = func() time.Time { return now }
+
+	for _, u := range []string{"U1", "U2", "U3"} {
+		_, _ = r.DisplayName(context.Background(), "T1", u)
+	}
+	now = now.Add(2 * time.Minute) // U1-U3 have expired
+	_, _ = r.DisplayName(context.Background(), "T1", "U4")
+
+	if len(r.entries) != 1 {
+		t.Fatalf("entries = %v, want only the live U4", r.entries)
+	}
+	if _, ok := r.entries["T1|U4"]; !ok {
+		t.Fatalf("newest entry missing: %v", r.entries)
+	}
+}
+
+func TestCachedNameResolverStaysBoundedWhenFullOfLiveEntries(t *testing.T) {
+	r := NewCachedNameResolver(&countingLookup{name: "Jane"}, time.Hour)
+	r.maxEntries = 3
+	r.now = func() time.Time { return time.Unix(0, 0) }
+
+	for _, u := range []string{"U1", "U2", "U3", "U4", "U5"} {
+		_, _ = r.DisplayName(context.Background(), "T1", u)
+		if len(r.entries) > r.maxEntries {
+			t.Fatalf("after %s: %d entries, limit %d", u, len(r.entries), r.maxEntries)
+		}
+	}
+	if _, ok := r.entries["T1|U5"]; !ok {
+		t.Fatalf("newest entry missing: %v", r.entries)
+	}
+}
+
+// Refreshing a key already in the cache must not trigger eviction.
+func TestCachedNameResolverRefreshDoesNotEvict(t *testing.T) {
+	r := NewCachedNameResolver(&countingLookup{name: "Jane"}, time.Minute)
+	r.maxEntries = 2
+	now := time.Unix(0, 0)
+	r.now = func() time.Time { return now }
+
+	_, _ = r.DisplayName(context.Background(), "T1", "U1")
+	_, _ = r.DisplayName(context.Background(), "T1", "U2")
+	now = now.Add(2 * time.Minute)
+	_, _ = r.DisplayName(context.Background(), "T1", "U2") // expired, refetched in place
+
+	if len(r.entries) != 2 {
+		t.Fatalf("entries = %v, want both kept", r.entries)
+	}
+}

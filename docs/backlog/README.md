@@ -26,7 +26,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 | 14 | [Collapse and test the Slack Web API client](14-slack-client.md) | Three copies of one request routine, no tests | S |
 | 15 | [Dead code and duplication sweep](15-dead-code-sweep.md) | Unused exports, duplicated constants | S |
 | 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M |
-| 17 | [Bound the name cache](17-name-cache-bound.md) | The cache never evicts | S |
 | 18 | [Retire `cmd/migrate`](18-retire-migrate.md) | Owner confirmation required. Drops the Postgres dependency | S |
 | 19 | [DynamoDB deletion protection](19-terraform-deletion-protection.md) | Owner merges this. Production tables can be deleted by a bad plan | S |
 
@@ -35,8 +34,7 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 Only these are safe to have open at the same time as other items, once 01 and 02 have
 landed:
 
-- **14** and **17** each stay inside their own files (`client.go` and `team_client.go`;
-  `name_cache.go`).
+- **14** stays inside `client.go` and `team_client.go`.
 - **09** touches only `internal/crypto` and the workspace repository. Not alongside 06.
 - **19** touches only `terraform/dynamodb.tf`. Not alongside 03, which edits the same file.
 - **11** touches only CI and image configuration.
