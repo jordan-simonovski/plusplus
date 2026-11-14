@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -375,5 +376,48 @@ func TestEventsProcessorNeverCreditsTheBot(t *testing.T) {
 		if len(got) != len(want) || (len(want) > 0 && got[0] != want[0]) {
 			t.Fatalf("%q: expected targets %v, got %v", text, want, got)
 		}
+	}
+}
+
+func groupMembers(n int) []string {
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("U%03d", i)
+	}
+	return ids
+}
+
+func TestEventsProcessorGroupKarmaSizeLimit(t *testing.T) {
+	cases := map[string]struct {
+		members   []string
+		wantCalls int
+		wantText  []string
+	}{
+		"at the limit":            {members: groupMembers(50), wantCalls: 50},
+		"one over the limit":      {members: groupMembers(51), wantCalls: 0, wantText: []string{"51", "50"}},
+		"duplicates counted once": {members: append(groupMembers(40), groupMembers(20)...), wantCalls: 40},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			var calls []string
+			web := &fakeWebClient{}
+			p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, &fakeUserGroupLister{ids: tc.members}, web)
+			if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++"); got != http.StatusOK {
+				t.Fatalf("status %d", got)
+			}
+			if len(calls) != tc.wantCalls {
+				t.Fatalf("karma applied %d times, want %d", len(calls), tc.wantCalls)
+			}
+			if tc.wantText != nil {
+				if len(web.posts) != 1 {
+					t.Fatalf("posts %+v, want one message", web.posts)
+				}
+				for _, want := range tc.wantText {
+					if !strings.Contains(web.posts[0].text, want) {
+						t.Errorf("message %q does not mention %s", web.posts[0].text, want)
+					}
+				}
+			}
+		})
 	}
 }

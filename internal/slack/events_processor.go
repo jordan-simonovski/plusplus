@@ -45,6 +45,10 @@ type ReactionStateStore interface {
 	KarmaTargets(ctx context.Context, teamID, channelID, messageTS string) (targets []string, ok bool, err error)
 }
 
+// maxGroupMembers caps user-group karma: one message to a big group would otherwise run
+// hundreds of writes and API calls inside one request and post a reply too long to send.
+const maxGroupMembers = 50
+
 // InstallationRemover forgets a workspace's bot token when the app is uninstalled.
 type InstallationRemover interface {
 	// RemoveInstallation removes the token only if it was installed before uninstalledAt.
@@ -380,6 +384,10 @@ func (p *EventsProcessor) handleSubteamKarma(
 	members = dedupePreserveOrder(members)
 	if len(members) == 0 {
 		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "That user group has no members.", threadTS)
+	}
+	// Each member costs two DynamoDB writes and a users.info call, all inside the request.
+	if len(members) > maxGroupMembers {
+		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, domain.FormatGroupTooLarge(len(members), maxGroupMembers), threadTS)
 	}
 
 	var lines []string
