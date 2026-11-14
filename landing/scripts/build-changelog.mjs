@@ -40,6 +40,16 @@ const page = `<!DOCTYPE html>
   <meta name="slack-app-id" content="A0AS7F57GJH" />
   <title>Changelog — PlusPlus</title>
   <meta name="description" content="Release history and version notes for the PlusPlus Slack karma bot." />
+  <meta property="og:title" content="Changelog — PlusPlus" />
+  <meta property="og:description" content="Release history and version notes for the PlusPlus Slack karma bot." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://pluspluskarma.dev/changelog.html" />
+  <meta property="og:site_name" content="PlusPlus" />
+  <meta property="og:image" content="https://pluspluskarma.dev/og-image.png?v=2" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="PlusPlus — Karma for your Slack, made simple." />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="robots" content="index, follow" />
   <link rel="icon" type="image/png" href="plusplus-icon.png" />
   <link rel="stylesheet" href="styles.css" />
