@@ -19,6 +19,10 @@ make run                  # run the server against DynamoDB Local with dev secre
 
 Run the first four before every commit. Run `make test-integration` whenever you touch
 `internal/persistence`, because the default test run does not exercise DynamoDB at all.
+It needs Docker; if Docker is not available, say so in the PR description.
+
+Until backlog item 01 is done, `gofmt` and `golangci-lint` report findings in files you
+did not touch. Leave those alone and make sure your own diff adds none.
 
 ## Where things live
 
@@ -77,8 +81,8 @@ say so instead of working around it.
 6. **Reactions are symmetric.** A removed reaction takes back the tier that was stored
    when it was added, even if the emoji mapping changed in between.
 7. **Slack retries must not double-apply.** Slack re-delivers an event when it gets no
-   2xx within three seconds or gets a 5xx. Any new event handling has to be safe to
-   receive twice.
+   2xx response within three seconds. Any new event handling has to be safe to receive
+   twice.
 8. **Scopes and events need the owner's approval.** The hosted app's scope set is
    reviewed by Slack. Do not add scopes or event subscriptions to
    `slack-app-manifest.yaml` on your own, and keep `slack-app-manifest.self-hosted.yaml`
@@ -95,8 +99,9 @@ say so instead of working around it.
 - Standard library first. Do not add a dependency without asking; the module has two
   direct dependencies (AWS SDK, pgx for the migration tool) and that is deliberate.
 - Wrap errors with `%w` and context (`fmt.Errorf("apply karma delta: %w", err)`). Text
-  shown to Slack users comes from `InputError` or from `internal/domain`, never from a
-  raw error.
+  shown to Slack users must come from `InputError` or from fixed copy, never from a raw
+  error. (`respondSnarkText` and the user-group path still echo an error today; do not
+  copy that.)
 - Tests live beside the code, use hand-written fakes (see
   `internal/slack/events_processor_test.go`), and stub HTTP with a `RoundTripper` (see
   `roundTripFunc` in `internal/slack/oauth_callback_test.go`). No mocking or assertion
@@ -104,8 +109,9 @@ say so instead of working around it.
 - A comment starting `ponytail:` marks a deliberate simplification and names its limit.
   Leave those alone unless your task is to lift that limit.
 - Comments explain why, not what. Match the density of the surrounding file.
-- All user-facing bot copy lives in `internal/domain` (`messages.go`, `snark.go`) or in the
-  usage text in `internal/slack/commands_processor.go`.
+- Karma reply copy lives in `internal/domain` (`messages.go`, `snark.go`). Settings, emoji
+  and user-group notices are still inline in `internal/slack`. Put new reply copy in
+  `internal/domain`.
 
 ## Shipping a change
 
@@ -114,8 +120,12 @@ say so instead of working around it.
    Changeset text is a release note for users: say what changed for them, with no
    implementation or review detail. Refactors, tests, CI and docs need no changeset.
 3. Run the commands above.
-4. Follow `CLAUDE.md` for the review step before opening the PR.
+4. Follow `CLAUDE.md` for the review step before opening the PR. If the review command it
+   names is not available to you, check your diff against "Rules that must hold" yourself
+   and say in the PR description that the command was unavailable.
 5. Commits and PR descriptions carry no AI-attribution lines.
+6. If your change makes any statement in this file untrue (a path, a command, a rule's
+   wording, the dependency count), fix the statement in the same PR.
 
 Leave these to the owner unless the task names them:
 
@@ -128,6 +138,9 @@ Leave these to the owner unless the task names them:
 
 Planned work is in `docs/backlog/`. Start with `docs/backlog/README.md`, which gives the
 order and says which items can run in parallel. Each item is one file and one PR. Delete
-the item's file and its row in the index in the PR that completes it. If an item is marked
-"owner decision", implement the stated default and call the decision out at the top of the
-PR description.
+the item's file and its row in the index in the PR that completes it.
+
+Briefs mark two kinds of owner involvement. "Owner decision" comes with a default:
+implement the default and call the decision out at the top of the PR description. "Owner
+confirmation required" means do not start unless the task you were given includes that
+confirmation; ask instead.

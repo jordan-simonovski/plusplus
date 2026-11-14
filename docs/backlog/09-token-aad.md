@@ -18,9 +18,12 @@ that into a decryption failure.
 2. In `DynamoWorkspaceRepository`:
    - `UpsertInstallation` encrypts with `aad = []byte(teamID)`.
    - `GetBotToken` decrypts with `aad = []byte(teamID)`. If that fails, it tries once more
-     with `nil` so rows written before this change still work.
+     with `nil` so rows written before this change still work. When the fallback
+     succeeds, re-encrypt the token with the team AAD and write it back with an
+     `UpdateItem` on the ciphertext attribute only. If the write fails, log it and still
+     return the token. Existing rows then convert the first time each workspace is active.
 3. Mark the fallback with a comment:
-   `// ponytail: legacy rows have no AAD and stay swappable until the workspace reinstalls; drop this fallback once all rows are rewritten.`
+   `// ponytail: rows written before AAD are upgraded on first read; drop this fallback once none are left.`
 4. `cmd/migrate` copies existing ciphertext without decrypting it. Check that this is
    still true and that it compiles. Those rows are legacy rows and the fallback covers
    them.
@@ -31,11 +34,12 @@ that into a decryption failure.
   with `nil` AAD something encrypted with AAD fails.
 - Integration: a token stored for team A round-trips; copying A's ciphertext attribute
   into team B's row makes `GetBotToken(B)` return an error; a row written with `nil` AAD
-  (legacy) is still readable.
+  (legacy) is still readable, and after that read the row no longer decrypts with `nil`
+  AAD; a legacy row with one flipped byte returns an error.
 
 ## Out of scope
 
-Key rotation, re-encrypting existing rows, a key ID in the blob.
+Key rotation, a batch job to re-encrypt rows, a key ID in the blob.
 
 ## Done when
 

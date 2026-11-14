@@ -23,11 +23,15 @@ Add these files. Keep each short; link rather than repeat.
    - Where things live: link to the table in `AGENTS.md` instead of copying it.
    - Using a coding agent is welcome; point it at `AGENTS.md`.
 2. `SECURITY.md`
-   - Report privately through GitHub's "Report a vulnerability" button on the Security
-     tab, or by email to `contact@pluspluskarma.dev`. Do not open a public issue.
+   - Report privately by email to `contact@pluspluskarma.dev`, or through GitHub's "Report
+     a vulnerability" button on the Security tab where it is shown (the owner has to
+     enable it; see "Owner follow-up"). Do not open a public issue.
    - Supported versions: the latest release and the hosted app.
    - In scope: signature verification, workspace isolation, token storage, the OAuth flow.
 3. `CODE_OF_CONDUCT.md`: Contributor Covenant 2.1, contact `contact@pluspluskarma.dev`.
+   Fetch the text from
+   `https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md`;
+   do not write it from memory. If you cannot fetch it, leave this file out and say so.
 4. `.github/ISSUE_TEMPLATE/bug.yml`: an issue form asking for hosted or self-hosted, the
    version (shown at the bottom of the `/plusplus-settings` panel), what was typed or
    reacted, what happened, what was expected, and for self-hosters the relevant log lines
@@ -65,8 +69,9 @@ description for the owner:
 
 ## Done when
 
-- GitHub's community profile for the repository shows every item present after merge.
-- The issue forms render (check with the "New issue" page on the branch's fork or by
-  validating the YAML against GitHub's form schema).
+- Each file is at the path GitHub's community profile looks for: `CONTRIBUTING.md`,
+  `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`,
+  `.github/pull_request_template.md`, `.github/CODEOWNERS`.
+- The issue forms parse as YAML and use only keys from GitHub's issue-form schema.
 - Every command and link in the new files has been run or opened.
 - No changeset.

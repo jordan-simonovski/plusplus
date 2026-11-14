@@ -1,6 +1,7 @@
 # 08. OAuth handler cleanup
 
-All changes are in `internal/slack/oauth_handler.go` and its tests.
+Changes are in `internal/slack/oauth_handler.go`, its tests, the `NewOAuthHandler` call in
+`cmd/server/main.go`, and one comment in `internal/config/config.go`.
 
 ## Problems
 
@@ -21,16 +22,18 @@ All changes are in `internal/slack/oauth_handler.go` and its tests.
 
 1. Delete `inferPublicBaseURL` and the fallback in `baseURL`. `NewOAuthHandler` returns
    `(*OAuthHandler, error)` and fails when `redirectBaseURL` is empty. Update the call in
-   `cmd/server/main.go` and the tests.
+   `cmd/server/main.go` and the tests. The comment in `config.Load` that says the URL
+   "falls back to request headers" is then out of date; reword it.
 2. On exchange failure respond 502 with a fixed message ("Could not complete the Slack
    install. Please try again."). For the `error` query parameter respond 400 with a fixed
    message, plus the parameter only when it matches `^[a-z_]{1,40}$` (Slack's error codes
    look like `access_denied`).
-   If item 04 has landed, log the real cause with `slog`. If it has not, use `log.Printf`.
+   Log the real cause: with `slog` if the package already uses it, otherwise `log.Printf`.
 3. Derive a separate state key once in `NewOAuthHandler`:
    `HMAC-SHA256(key = stateSecret, message = "plusplus-oauth-state-v1")`, and sign and
    verify state with that. States minted before a deploy stop verifying; they only live
-   ten minutes and the user is sent back to install, so no migration is needed.
+   ten minutes, and a user caught by it sees "invalid OAuth state" and starts the install
+   again, so no migration is needed.
 4. Wrap the response body in `io.LimitReader(resp.Body, 1<<20)`.
 
 ## Tests
@@ -51,5 +54,5 @@ The state-less callback path for installs started on Slack's side, which is deli
 ## Done when
 
 - Tests above pass.
-- `grep -rn "X-Forwarded" internal` prints nothing.
+- `grep -rn "X-Forwarded" internal --include='*.go' | grep -v _test.go` prints nothing.
 - No changeset (no behaviour change for a correctly configured deployment).

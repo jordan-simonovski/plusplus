@@ -1,6 +1,6 @@
 # 19. DynamoDB deletion protection
 
-## Owner runs this
+## Owner merges this
 
 `terraform/` is applied to production automatically when a change merges to `main`
 (`.github/workflows/terraform.yml`, `terraform apply -auto-approve`). An agent may prepare
@@ -24,6 +24,9 @@ being deleted in a way that makes this painless: it restores to a new table, by 
 
 ## Done when
 
-- `terraform fmt -check -recursive` and `terraform validate` pass.
+- `terraform fmt -check -recursive` passes, and `terraform validate` passes after
+  `terraform init -backend=false` (the real backend needs AWS credentials you will not
+  have). The plan from the PR's `terraform` workflow run is the one that counts.
+- Not open at the same time as item 03, which edits the same file.
 - The PR's plan shows six in-place updates and no replacements or destroys. Paste it.
 - No changeset.

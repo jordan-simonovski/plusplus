@@ -36,6 +36,9 @@ by workspace.
    attributes instead of formatted strings. Leave `log.Fatalf` at startup and everything
    in `cmd/migrate` alone.
 
+5. Add one line to "Conventions" in `AGENTS.md` so later work keeps this up: every path
+   that returns a 5xx logs the cause once with `slog`, with `team`, `kind` and `err`.
+
 Never log tokens, secrets, OAuth codes or message text (rule 3 in `AGENTS.md`). User and
 channel IDs are fine.
 

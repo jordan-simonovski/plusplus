@@ -16,17 +16,20 @@ The package has no tests (0% coverage).
 
 ## Change
 
-1. `Load` returns an error when `SLACK_SIGNING_SECRET` is empty.
-2. `Load` returns an error when `SLACK_CLIENT_ID` and `SLACK_BOT_TOKEN` are both empty,
-   saying that one of the two modes must be configured.
-3. A non-numeric `MAX_KARMA_PER_ACTION` is an error that names the variable. An unset one
-   still defaults to 5.
+`config.Load` has four callers: `cmd/server/main.go`, `cmd/migrate/main.go`, and the two
+integration tests in `internal/persistence`. Only the server has Slack settings, so the
+Slack checks cannot live in `Load`.
+
+1. Add a `ValidateServer() error` method on `Config`, called only from
+   `cmd/server/main.go` straight after `Load`. It returns an error when
+   `SLACK_SIGNING_SECRET` is empty.
+2. `ValidateServer` also returns an error when `SLACK_CLIENT_ID` and `SLACK_BOT_TOKEN` are
+   both empty, saying that one of the two modes must be configured.
+3. In `Load`, a non-numeric `MAX_KARMA_PER_ACTION` is an error that names the variable.
+   An unset one still defaults to 5.
 4. Remove `SlackAppToken` and the `SLACK_APP_TOKEN` read. Remove the variable from
    `README.md` and `docs/self-hosting.md` if it is mentioned.
-5. `cmd/migrate` also calls `config.Load` and has no Slack settings. Check how it uses the
-   config and keep it working: move checks 1 and 2 into a `ValidateServer()` method on
-   `Config` that only `cmd/server/main.go` calls, if that is what it takes.
-6. Add `internal/config/config_test.go`: a table test using `t.Setenv` covering each error
+5. Add `internal/config/config_test.go`: a table test using `t.Setenv` covering each error
    above, the defaults, the OAuth requirements that already exist (client secret, public
    base URL, encryption key), and one valid configuration for each mode.
 
@@ -40,7 +43,8 @@ New configuration options. Reading config from files.
 ## Done when
 
 - The table test passes and `internal/config` coverage is above 80%.
-- `make run` still starts.
+- `make run` still starts, and `make test-integration` still passes (its tests call
+  `Load` with no Slack settings).
 - Changeset (patch): the server now refuses to start with a clear message when Slack
   credentials are missing or `MAX_KARMA_PER_ACTION` is not a number. This can stop a
   misconfigured self-hosted deployment that previously started, so say so.

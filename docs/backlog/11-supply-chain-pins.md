@@ -20,12 +20,16 @@
    together (`github.com/aws/*`).
 2. Pin every `uses:` in `.github/workflows/*.yml` to a full commit SHA with the version in
    a trailing comment, for example `uses: actions/checkout@<sha> # v4.2.2`. Resolve each
-   SHA from the action's own repository at its current release; do not copy SHAs from
-   memory or from this file.
+   SHA from the action's own repository at its current release with
+   `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (if the result is an annotated tag,
+   follow it to the commit). Do not write SHAs from memory.
 3. Pin both `Dockerfile` base images by digest, keeping the tag for readability:
    `golang:1.26.1-alpine@sha256:…`. Get digests with `docker buildx imagetools inspect`.
+   If Docker is not available, do not guess digests: leave the `Dockerfile` as it is, say
+   so in the PR description, and do the rest.
 4. Replace `amazon/dynamodb-local:latest` in `docker-compose.yml` with the current version
-   tag.
+   tag, and use the same tag for the service container in `.github/workflows/go.yml` if
+   that job exists.
 
 ## Out of scope
 

@@ -1,4 +1,4 @@
-# 06. Delete the token on uninstall
+# 06. Remove the token on uninstall
 
 Do after 04.
 
@@ -13,14 +13,20 @@ app is installed".
 
 ## Change
 
-1. Add `DeleteInstallation(ctx, teamID) error` to `DynamoWorkspaceRepository`. Deleting a
-   row that does not exist is not an error.
+1. Add `RemoveInstallation(ctx, teamID) error` to `DynamoWorkspaceRepository`. Implement it
+   as an `UpdateItem` that does `REMOVE bot_token_ciphertext` with the condition
+   `attribute_exists(team_id)`, treating a failed condition as success, so an unknown
+   workspace is not an error and no empty row is created. Do not use `DeleteItem`: the
+   runtime IAM policies (`terraform/bootstrap/main.tf`, `docs/self-hosting.md`,
+   `README.md`) do not grant it, and adding a permission would break self-hosted
+   deployments on upgrade. `GetBotToken` already returns `domain.ErrNotFound` for a row
+   without the ciphertext attribute.
 2. In `ProcessEvent`, after signature verification, handle two event types inside
    `event_callback`:
-   - `app_uninstalled`: delete the installation for `envelope.TeamID`.
-   - `tokens_revoked`: delete it only when the event's `tokens.bot` list is non-empty.
+   - `app_uninstalled`: remove the installation for `envelope.TeamID`.
+   - `tokens_revoked`: remove it only when the event's `tokens.bot` list is non-empty.
      Add the field to `SlackEvent`.
-   Respond 200 on success and 500 on a storage error (deleting twice is harmless, so a
+   Respond 200 on success and 500 on a storage error (removing twice is harmless, so a
    retry is safe).
 3. Declare the dependency as a one-method interface in `internal/slack` and attach it with
    a `With…` method. In single-workspace mode there is no store; the events are then
@@ -35,21 +41,22 @@ app is installed".
 
 ## Owner decision
 
-This item deletes only the token. Karma totals and settings are kept, so a workspace that
+This item removes only the token. Karma totals and settings are kept, so a workspace that
 reinstalls gets its history back. Deleting karma on uninstall would be a product and
 privacy-policy change; do not do it here.
 
 ## Tests
 
-- Unit: `app_uninstalled` calls delete with the envelope's team; `tokens_revoked` with bot
-  tokens deletes and without them does not; an unsigned request deletes nothing; with no
-  store configured the response is 200.
-- Integration: after `DeleteInstallation`, `GetBotToken` returns `domain.ErrNotFound`, and
-  deleting again succeeds.
+- Unit: `app_uninstalled` calls remove with the envelope's team; `tokens_revoked` with bot
+  tokens removes and without them does not; an unsigned request removes nothing; a storage
+  error returns 500; with no store configured the response is 200.
+- Integration: after `RemoveInstallation`, `GetBotToken` returns `domain.ErrNotFound`;
+  removing again succeeds; removing for a team that was never installed succeeds and
+  creates no row.
 
 ## Done when
 
 - Tests above pass.
 - Both manifests list the two events.
-- Changeset (patch): PlusPlus now deletes a workspace's stored Slack token when the app is
+- Changeset (patch): PlusPlus now removes a workspace's stored Slack token when the app is
   uninstalled. Self-hosters using OAuth mode should add the two event subscriptions.

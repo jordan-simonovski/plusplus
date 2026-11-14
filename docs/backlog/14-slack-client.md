@@ -22,9 +22,11 @@ in that routine are wrong in all three copies:
    - returns an error naming the method and status when the status is not 2xx, including
      the `Retry-After` header value when the status is 429;
    - decodes at most 1 MiB of the body into `out`.
-2. Every response type embeds a small struct with `OK bool` and `Error string`, and `call`
-   returns `fmt.Errorf("slack %s failed: %s", method, errCode)` when `ok` is false. The
-   three public methods shrink to building the payload and calling `call`.
+2. `call` reads the body once (up to the limit), unmarshals it into a local
+   `struct{ OK bool; Error string }` to check `ok`, and returns
+   `fmt.Errorf("slack %s failed: %s", method, errCode)` when it is false. Only then does it
+   unmarshal the same bytes into `out`. No reflection and no interface on the response
+   types. The three public methods shrink to building the payload and calling `call`.
 3. Give `TeamResolvingClient` one shared `*http.Client` (10 second timeout, as today) and
    pass it to each `APIClient` instead of creating one per call.
 4. Remove the three URL constants.
@@ -39,6 +41,8 @@ Add `internal/slack/client_test.go`, stubbing the transport with `roundTripFunc`
 
 - `PostMessage` sends the bearer token, JSON content type, channel, text, and `thread_ts`
   only when set.
+- `ListUserGroupMembers` sends the group ID and team ID as form fields and returns the
+  user list.
 - `ok: false` returns an error containing the method name and Slack's error code.
 - A 429 with `Retry-After: 30` returns an error mentioning 429 and 30.
 - A 500 with an HTML body returns an error mentioning the status, not a JSON decode error.

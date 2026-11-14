@@ -43,7 +43,11 @@ Existing tests cover the leaderboard, usage and help. Add:
 
 ### 4. `internal/crypto/aesgcm.go`
 
-- `NewAESEncryptor` and `ParseKeyBase64` reject keys of the wrong length and bad base64.
+Use the `Encrypt` and `Decrypt` signatures as they are on `main` when you start; if they
+take an AAD argument (item 09 has landed), pass one.
+
+- `NewAESEncryptor` and `ParseKeyBase64` reject keys of the wrong length, bad base64 and
+  the empty string.
 - `Decrypt` of a blob shorter than the nonce, and of a blob with one flipped bit, fails.
 - Two encryptions of the same plaintext differ.
 
@@ -55,17 +59,25 @@ invariants for arbitrary input. Add Go native fuzz tests with a few seed inputs 
 
 - `FuzzParseKarmaSegments` in `internal/parser`: never panics; every segment has exactly
   one of `UserID` or `SubteamID`, matching `^[A-Z0-9]+$`; every `SymbolRun` is non-empty
-  and is either all `+` or all dash characters.
-- `FuzzEvaluateKarmaAction` in `internal/domain` (fuzz the symbol run and whether actor
-  equals target): never panics; an applied outcome has `1 <= |Delta| <= maxSymbols-1`;
-  when actor equals target the outcome is never applied.
+  and is either all `+` or made only of the dash characters the parser accepts (`-`,
+  U+2010, U+2011, U+2013, U+2014, U+2212; see `karmaSegmentPattern`).
+- `FuzzEvaluateKarmaActionWithLimits` in `internal/domain`, calling
+  `EvaluateKarmaActionWithLimits(input, minSymbolCount, maxSymbolCount)` (fuzz the symbol
+  run and whether actor equals target): never panics; an applied outcome has
+  `1 <= |Delta| <= maxSymbolCount-1`; when actor equals target the outcome is never
+  applied.
 
-Run each fuzzer locally for 30 seconds (`go test -fuzz=FuzzName -fuzztime=30s ./pkg`) and
-commit any failing input it finds under `testdata/fuzz/`.
+Run each fuzzer locally for 30 seconds (`go test -fuzz=FuzzName -fuzztime=30s ./pkg`). If
+a fuzzer finds a failing input, do not commit the input (a committed failing corpus file
+fails `go test` for everyone). Put the input and the bug in the PR description, and
+remove the invariant it broke from the fuzz test with a comment naming the bug.
 
 ## Done when
 
-- Coverage for `internal/slack` is above 75%, `internal/http` above 80%, `internal/crypto`
-  above 90%. Put the before and after numbers in the PR description.
+- Coverage for `internal/slack` is above 75% and `internal/crypto` above 85% (three error
+  branches there cannot be reached with a valid key). `internal/http` is above 80% if
+  item 12 has landed; before that its pass-through handler files hold it down, so cover
+  everything in `server.go` and report the number. Put the before and after numbers in the
+  PR description.
 - Both fuzzers ran for 30 seconds each; state the result.
 - No changeset.

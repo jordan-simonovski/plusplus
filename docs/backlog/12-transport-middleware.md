@@ -19,7 +19,7 @@ Around them is a layer that does nothing:
 - `internal/http/noop_processor.go` is not used by the server.
 - `InteractionsProcessor.HandleInteraction` only calls `processInteraction`.
 - Each processor stores its own copy of the signing secret.
-- `ProcessEvent` writes `{"ok":true}` with the same three lines in eight places.
+- `ProcessEvent` writes `{"ok":true}` with the same two lines in seven places.
 
 ## Change
 
@@ -44,7 +44,12 @@ Around them is a layer that does nothing:
 
 - One table test for `VerifiedBody`: missing headers, bad signature, stale timestamp and
   wrong method never call `next`; a valid request calls it with the exact body bytes.
-- `TestHandlerCapsRequestBody` in `internal/http/server_test.go` still passes.
+- `TestHandlerCapsRequestBody` in `internal/http/server_test.go` still passes. Its
+  `readAllHandler` helper implements the interfaces this item deletes, so adapt the helper
+  to `http.Handler`; keep both assertions.
+- One test builds the real route table the way `cmd/server/main.go` does and asserts that
+  an unsigned POST to each of `/slack/events`, `/slack/commands` and `/slack/interactions`
+  returns 401. This is what now guards rule 1, since `NewServer` accepts any handler.
 - All existing processor tests pass without loosening any assertion.
 
 ## Out of scope
@@ -54,7 +59,7 @@ Splitting `ProcessEvent` (item 13).
 
 ## Done when
 
-- `grep -rn "VerifyRequestSignature(" internal --include='*.go' | grep -v _test` shows one
-  call, inside `VerifiedBody`.
+- `grep -rn "VerifyRequestSignature(" internal --include='*.go' | grep -v _test` shows two
+  lines: the definition in `signature.go` and one call, inside `VerifiedBody`.
 - The three deleted files are gone and the build passes.
 - No changeset.

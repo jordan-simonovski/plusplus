@@ -20,10 +20,12 @@ The reaction path already has the right shape: `ProcessEvent` calls
 1. Extract `handleKarmaMessage(ctx context.Context, envelope EventEnvelope) error`
    containing everything from parsing segments to posting replies. It returns an error;
    `ProcessEvent` maps it to a status.
-2. Today different failures return different statuses (500 for karma and storage
-   failures, 502 for Slack reply failures). Preserve that with a small typed error or
-   sentinel that `ProcessEvent` checks with `errors.Is`. Do not flatten them into one
-   status.
+2. Today different failures return different statuses. For a single-user target: 500
+   when karma fails, 502 when the reply fails. 500 when `RecordKarmaTargets` fails. For a
+   user-group target: 502 for every error, including a karma failure, with the error text
+   as the body. Preserve each of these exactly, with a small typed error or sentinel that
+   `ProcessEvent` checks with `errors.Is`. Do not flatten them into one status, and do not
+   "fix" the user-group case here.
 3. Extract the filters into one function,
    `karmaEventIgnored(envelope EventEnvelope) bool`, covering the unsupported type,
    subtype, bot and duplicate-of-app-mention checks, and keep each existing comment next
@@ -36,6 +38,9 @@ Move code; do not rewrite it. Keep function order in the file so the diff reads 
 
 ## Tests
 
+- Before refactoring, add a test for the one status no existing test pins: a failing
+  karma service on a user-group award returns 502. Commit it first so it is seen passing
+  against the old code.
 - All existing tests in `events_processor_test.go` and `reactions_test.go` pass unchanged.
   If a test has to change, the refactor changed behaviour: stop and find out why.
 - Add two direct tests of `handleKarmaMessage` without HTTP: one target applied and

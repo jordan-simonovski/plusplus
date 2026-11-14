@@ -6,7 +6,11 @@ Do after 12 and 13 so the sweep does not collide with them. Behaviour must not c
 
 Each of these looked unused or duplicated at audit time. Confirm each with a search before
 removing it, because earlier backlog items may have changed the picture. Remove a symbol
-only when nothing outside its own tests refers to it, and delete those tests with it.
+only when nothing outside its own tests refers to it. Do not lose test coverage of logic
+that stays: `TestEvaluateKarmaAction` exercises the core rules, so point it at
+`EvaluateKarmaActionWithLimits(input, minSymbolCount, maxSymbolCount)`, and point the
+`ParseMentionAction` cases at `ParseKarmaSegments`. Delete a test only when it covers
+nothing but the removed symbol.
 
 | Where | What | Finding |
 | --- | --- | --- |

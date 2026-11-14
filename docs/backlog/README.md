@@ -8,33 +8,47 @@ If a brief no longer matches the code, trust the code, and say what differed in 
 
 ## Order
 
-Do them top to bottom unless the "Can run alongside" column says otherwise. Items that
-share a file must not be in flight at the same time; the column lists what is safe.
+Do them one at a time, top to bottom, merging each before starting the next. That is
+always safe. An item has landed when its file no longer exists in `docs/backlog/` on
+`main`; where a brief says "if item N has landed", check for the file.
 
-| # | Item | Why it matters | Size | Can run alongside |
-| --- | --- | --- | --- | --- |
-| 01 | [Go checks in CI](01-ci-go-checks.md) | Nothing tests Go code on PRs; images publish untested | S | nothing (do first) |
-| 02 | [Integration tests in CI](02-integration-tests-in-ci.md) | The DynamoDB layer has 0% coverage in the default run | S | 03 onward |
-| 03 | [Make typed karma safe to retry](03-event-idempotency.md) | A Slack retry gives the same karma twice | M | 05, 08, 09, 10, 11 |
-| 04 | [Log every failure](04-log-failures.md) | Most 5xx paths return without logging the cause | M | 10, 11 |
-| 05 | [Validate config at startup](05-config-validation.md) | Bad settings start a server that silently rejects everything | S | 03, 10, 11 |
-| 06 | [Delete the token on uninstall](06-uninstall-token-cleanup.md) | Tokens for uninstalled workspaces are kept forever | M | 10, 11 |
-| 07 | [Cap user-group karma](07-group-fanout-cap.md) | One message can trigger unbounded writes and API calls | S | 10, 11 |
-| 08 | [OAuth handler cleanup](08-oauth-cleanup.md) | Dead header-trusting code path; errors echoed to browsers | S | 03, 10, 11 |
-| 09 | [Bind token ciphertext to its workspace](09-token-aad.md) | Stored tokens can be swapped between workspaces undetected | S | 03, 10, 11 |
-| 10 | [Contributor and issue scaffolding](10-community-health.md) | No contributing guide, security policy or issue forms | M | any |
-| 11 | [Dependabot and pinned actions/images](11-supply-chain-pins.md) | Mutable tags in CI and the Dockerfile | S | any |
-| 12 | [One signature gate for Slack endpoints](12-transport-middleware.md) | Verification is copy-pasted three times | M | 10, 11 |
-| 13 | [Split `ProcessEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M | 10, 11 |
-| 14 | [Collapse and test the Slack Web API client](14-slack-client.md) | Three copies of one request routine, no tests | S | 10, 11, 17 |
-| 15 | [Dead code and duplication sweep](15-dead-code-sweep.md) | Unused exports, duplicated constants | S | 10, 11 |
-| 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M | 10, 11 |
-| 17 | [Bound the name cache](17-name-cache-bound.md) | The cache never evicts | S | 10, 11, 14 |
-| 18 | [Retire `cmd/migrate`](18-retire-migrate.md) | Owner decision. Drops the Postgres dependency | S | 10, 11 |
-| 19 | [DynamoDB deletion protection](19-terraform-deletion-protection.md) | Owner runs this. Production tables can be deleted by a bad plan | S | any |
+| # | Item | Why it matters | Size |
+| --- | --- | --- | --- |
+| 01 | [Go checks in CI](01-ci-go-checks.md) | Nothing tests Go code on PRs; images publish untested | S |
+| 02 | [Integration tests in CI](02-integration-tests-in-ci.md) | The DynamoDB layer has 0% coverage in the default run | S |
+| 03 | [Make typed karma safe to retry](03-event-idempotency.md) | A Slack retry gives the same karma twice | M |
+| 04 | [Log every failure](04-log-failures.md) | Most 5xx paths return without logging the cause | M |
+| 05 | [Validate config at startup](05-config-validation.md) | Bad settings start a server that silently rejects everything | S |
+| 06 | [Remove the token on uninstall](06-uninstall-token-cleanup.md) | Tokens for uninstalled workspaces are kept forever | M |
+| 07 | [Cap user-group karma](07-group-fanout-cap.md) | One message can trigger unbounded writes and API calls | S |
+| 08 | [OAuth handler cleanup](08-oauth-cleanup.md) | Dead header-trusting code path; errors echoed to browsers | S |
+| 09 | [Bind token ciphertext to its workspace](09-token-aad.md) | Stored tokens can be swapped between workspaces undetected | S |
+| 10 | [Contributor and issue scaffolding](10-community-health.md) | No contributing guide, security policy or issue forms | M |
+| 11 | [Dependabot and pinned actions/images](11-supply-chain-pins.md) | Mutable tags in CI and the Dockerfile | S |
+| 12 | [One signature gate for Slack endpoints](12-transport-middleware.md) | Verification is copy-pasted three times | M |
+| 13 | [Split `ProcessEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M |
+| 14 | [Collapse and test the Slack Web API client](14-slack-client.md) | Three copies of one request routine, no tests | S |
+| 15 | [Dead code and duplication sweep](15-dead-code-sweep.md) | Unused exports, duplicated constants | S |
+| 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M |
+| 17 | [Bound the name cache](17-name-cache-bound.md) | The cache never evicts | S |
+| 18 | [Retire `cmd/migrate`](18-retire-migrate.md) | Owner confirmation required. Drops the Postgres dependency | S |
+| 19 | [DynamoDB deletion protection](19-terraform-deletion-protection.md) | Owner merges this. Production tables can be deleted by a bad plan | S |
 
-Items 03, 04, 06, 07, 12 and 13 all edit `internal/slack/events_processor.go`. Run them
-one at a time, in that order.
+### Running items in parallel
+
+Only these are safe to have open at the same time as other items, once 01 and 02 have
+landed:
+
+- **14** and **17** each stay inside their own files (`client.go` and `team_client.go`;
+  `name_cache.go`).
+- **09** touches only `internal/crypto` and the workspace repository. Not alongside 06.
+- **19** touches only `terraform/dynamodb.tf`. Not alongside 03, which edits the same file.
+- **11** touches only CI and image configuration.
+- **10** adds new files and reorders `README.md`. Not alongside 05, 06 or 18, which also
+  edit `README.md` or `docs/self-hosting.md`.
+
+Everything else shares `internal/slack/events_processor.go`, `cmd/server/main.go` or the
+handler tests, so run those strictly in order.
 
 Sizes: S is under about 150 changed lines, M is up to about 400.
 

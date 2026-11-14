@@ -14,7 +14,8 @@ run `make test-integration` locally.
 ## Change
 
 1. Add an `integration` job to `.github/workflows/go.yml` with a service container running
-   `amazon/dynamodb-local` on port 8000 (pin a version tag, not `latest`), then
+   `amazon/dynamodb-local` on port 8000 (pin a version tag, not `latest`, and use the same
+   tag in `docker-compose.yml` so there is one version to keep current), then
    `make test-integration`.
 2. Read the two existing integration tests, then add tests for whatever in this list is
    not already covered. Add only what is missing.
