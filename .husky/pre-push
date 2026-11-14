@@ -1,10 +1,7 @@
-# Guard pushes to main:
-#   1. block if unconsumed changesets are present
-#   2. block if committed landing artifacts are stale vs a fresh render
-# Run `make release` to consume changesets and regenerate before pushing.
+# Guard pushes to main: block if committed landing artifacts are stale vs a fresh
+# render. Pending changesets on main are normal: the release workflow turns them into a
+# "chore: release" PR (.github/workflows/release.yml).
 protected="main"
-
-unconsumed=$(ls .changeset/*.md 2>/dev/null | grep -v '/README\.md$' || true)
 
 pushing_main=0
 while read -r local_ref local_sha remote_ref remote_sha; do
@@ -19,19 +16,13 @@ if [ "$pushing_main" -eq 0 ]; then
   exit 0
 fi
 
-if [ -n "$unconsumed" ]; then
-  echo "pre-push: unconsumed changesets present; run 'make release' before pushing to $protected:" >&2
-  echo "$unconsumed" >&2
-  exit 1
-fi
-
 if command -v node >/dev/null 2>&1; then
   if ! node landing/scripts/build-changelog.mjs >/dev/null 2>&1; then
     echo "pre-push: failed to regenerate landing changelog." >&2
     exit 1
   fi
   if ! git diff --quiet -- landing/; then
-    echo "pre-push: landing artifacts are stale; run 'make release' and commit the result before pushing to $protected." >&2
+    echo "pre-push: landing artifacts are stale; run 'npm run build:changelog' and commit the result before pushing to $protected." >&2
     git --no-pager diff --stat -- landing/ >&2
     exit 1
   fi

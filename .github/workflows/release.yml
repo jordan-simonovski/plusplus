@@ -1,0 +1,44 @@
+name: release
+
+# Opens (or updates) one "chore: release" pull request whenever changesets land on main.
+# The PR runs `npm run release`: it bumps package.json, writes CHANGELOG.md, regenerates
+# the landing changelog and deletes the consumed changesets. Merging it is the release:
+# docker.yml then builds the image and pushes the new version tag. Nothing is published
+# to npm (the package is private), so there is no publish step.
+#
+# Needs "Allow GitHub Actions to create and approve pull requests" (Settings > Actions >
+# General). PRs opened with the Actions token don't trigger other workflows, so the go
+# checks don't run on the release PR; it only changes versions and changelogs.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # HUSKY=0: CI has no use for the git hooks the prepare script installs.
+      - run: npm ci
+        env:
+          HUSKY: "0"
+
+      - uses: changesets/action@v2
+        with:
+          version-script: npm run release
+          commit-message: "chore: release"
+          pr-title: "chore: release"
