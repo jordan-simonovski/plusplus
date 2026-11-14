@@ -7,8 +7,9 @@
   `docker.yml` has `packages: write` and `terraform.yml` assumes an AWS role that applies
   to production, so a moved tag on any of those actions runs with real privileges.
 - The `Dockerfile` uses `golang:1.26.11-alpine` and
-  `gcr.io/distroless/static-debian12:nonroot` by tag. `docker-compose.yml` uses
-  `amazon/dynamodb-local:latest`.
+  `gcr.io/distroless/static-debian12:nonroot` by tag. `amazon/dynamodb-local` is pinned
+  to a version tag in `docker-compose.yml` and the `integration` job in
+  `.github/workflows/go.yml`, but not by digest.
 - There is no `.github/dependabot.yml`. Dependabot security updates are evidently on (PR
   #1 is one), but nothing proposes routine updates for Go modules, actions, npm or images.
 
@@ -36,9 +37,9 @@
    `golang:1.26.11-alpine@sha256:…`. Get digests with `docker buildx imagetools inspect`.
    If Docker is not available, do not guess digests: leave the `Dockerfile` as it is, say
    so in the PR description, and do the rest.
-4. Replace `amazon/dynamodb-local:latest` in `docker-compose.yml` with the current version
-   tag, and use the same tag for the service container in `.github/workflows/go.yml` if
-   that job exists.
+4. Pin `amazon/dynamodb-local` by digest as well as tag, in both `docker-compose.yml` and
+   the `integration` job's service container in `.github/workflows/go.yml`, keeping the two
+   identical.
 
 ## Out of scope
 
