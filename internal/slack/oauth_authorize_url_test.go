@@ -26,7 +26,7 @@ func TestOAuthAuthorizeQueryOmitsUserScopeWhenUnused(t *testing.T) {
 
 func TestInstallRequestsConfiguredScopes(t *testing.T) {
 	for scopes, want := range map[string]string{"": DefaultOAuthScopes, "a:read,b:write": "a:read,b:write"} {
-		h := NewOAuthHandler("client-id", "secret", "https://example.com", nil, "state-secret", scopes)
+		h := mustOAuthHandler(NewOAuthHandler("client-id", "secret", "https://example.com", nil, "state-secret", scopes))
 		w := httptest.NewRecorder()
 		h.Install(w, httptest.NewRequest(http.MethodGet, "/slack/install", nil))
 		loc, err := url.Parse(w.Header().Get("Location"))

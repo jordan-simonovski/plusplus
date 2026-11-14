@@ -61,7 +61,10 @@ func main() {
 
 	var oauthInstall, oauthCallback http.HandlerFunc
 	if cfg.SlackClientID != "" && workspaceRepo != nil {
-		oauth := appslack.NewOAuthHandler(cfg.SlackClientID, cfg.SlackClientSecret, cfg.PublicBaseURL, workspaceRepo, cfg.SlackSigningSecret, cfg.SlackOAuthScopes)
+		oauth, err := appslack.NewOAuthHandler(cfg.SlackClientID, cfg.SlackClientSecret, cfg.PublicBaseURL, workspaceRepo, cfg.SlackSigningSecret, cfg.SlackOAuthScopes)
+		if err != nil {
+			log.Fatalf("oauth: %v", err)
+		}
 		slog.Info("oauth enabled; set SLACK_OAUTH_SCOPES to change the scopes /slack/install requests", "scopes", oauth.Scopes())
 		oauthInstall = oauth.Install
 		oauthCallback = oauth.Callback

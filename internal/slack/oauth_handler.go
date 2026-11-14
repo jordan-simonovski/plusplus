@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -28,6 +29,9 @@ const oauthStateNonceLen = 16
 // signed state so a captured state expires (single-use would need shared storage).
 const oauthStateTimestampLen = 8
 
+// slackErrorCode matches the error codes Slack puts in the callback, like access_denied.
+var slackErrorCode = regexp.MustCompile(`^[a-z_]{1,40}$`)
+
 // oauthStateMaxAge bounds how long a minted state stays valid.
 const oauthStateMaxAge = 10 * time.Minute
 
@@ -40,16 +44,23 @@ type OAuthHandler struct {
 	clientID        string
 	clientSecret    string
 	redirectBaseURL string
-	stateSecret     string
+	stateKey        string
 	scopes          string
 	installer       WorkspaceInstaller
 	httpClient      *http.Client
 }
 
-// NewOAuthHandler builds the OAuth flow. stateSecret should be a server-only value (e.g. SLACK_SIGNING_SECRET)
-// used to HMAC-sign the OAuth state parameter so CSRF does not rely on cookies (fragile on cross-site redirects).
-// scopes is the comma-separated bot scope list; empty means DefaultOAuthScopes.
-func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller, stateSecret, scopes string) *OAuthHandler {
+// NewOAuthHandler builds the OAuth flow. redirectBaseURL is the app's fixed public origin
+// (PUBLIC_BASE_URL); the redirect_uri is never derived from request headers, which a client
+// controls. stateSecret should be a server-only value (e.g. SLACK_SIGNING_SECRET): a key
+// derived from it HMAC-signs the OAuth state so CSRF protection does not rely on cookies
+// (fragile on cross-site redirects). scopes is the comma-separated bot scope list; empty
+// means DefaultOAuthScopes.
+func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer WorkspaceInstaller, stateSecret, scopes string) (*OAuthHandler, error) {
+	base := strings.TrimRight(redirectBaseURL, "/")
+	if u, err := url.Parse(base); err != nil || u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("oauth: PUBLIC_BASE_URL must be an absolute URL like https://example.com, got %q", redirectBaseURL)
+	}
 	if scopes == "" {
 		scopes = DefaultOAuthScopes
 	}
@@ -57,31 +68,36 @@ func NewOAuthHandler(clientID, clientSecret, redirectBaseURL string, installer W
 		scopes:          scopes,
 		clientID:        clientID,
 		clientSecret:    clientSecret,
-		redirectBaseURL: strings.TrimRight(redirectBaseURL, "/"),
-		stateSecret:     stateSecret,
+		redirectBaseURL: base,
+		stateKey:        deriveStateKey(stateSecret),
 		installer:       installer,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
+	}, nil
+}
+
+// deriveStateKey gives OAuth state its own key, so the signing secret that authenticates
+// Slack's requests is not also used directly to sign the app's own tokens. Empty stays
+// empty, so minting state still fails without a secret.
+func deriveStateKey(secret string) string {
+	if secret == "" {
+		return ""
 	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte("plusplus-oauth-state-v1"))
+	return string(mac.Sum(nil))
 }
 
 // Scopes is the comma-separated bot scope list /slack/install requests.
 func (h *OAuthHandler) Scopes() string { return h.scopes }
 
-func (h *OAuthHandler) redirectURI(r *http.Request) string {
-	return h.baseURL(r) + "/slack/oauth/callback"
+func (h *OAuthHandler) redirectURI() string {
+	return h.redirectBaseURL + "/slack/oauth/callback"
 }
 
-func (h *OAuthHandler) installURL(r *http.Request) string {
-	return h.baseURL(r) + "/slack/install"
-}
-
-func (h *OAuthHandler) baseURL(r *http.Request) string {
-	if h.redirectBaseURL != "" {
-		return h.redirectBaseURL
-	}
-	return inferPublicBaseURL(r)
+func (h *OAuthHandler) installURL() string {
+	return h.redirectBaseURL + "/slack/install"
 }
 
 // Install redirects to Slack's OAuth authorize URL (state is HMAC-signed, no cookie).
@@ -91,7 +107,7 @@ func (h *OAuthHandler) Install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, err := newSignedOAuthState(h.stateSecret)
+	state, err := newSignedOAuthState(h.stateKey)
 	if err != nil {
 		slog.Error("mint oauth state failed", "kind", "oauth", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -103,7 +119,7 @@ func (h *OAuthHandler) Install(w http.ResponseWriter, r *http.Request) {
 	q := url.Values{}
 	q.Set("client_id", h.clientID)
 	q.Set("scope", h.scopes)
-	q.Set("redirect_uri", h.redirectURI(r))
+	q.Set("redirect_uri", h.redirectURI())
 	q.Set("state", state)
 
 	http.Redirect(w, r, "https://slack.com/oauth/v2/authorize?"+q.Encode(), http.StatusFound)
@@ -117,17 +133,23 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errParam := r.FormValue("error"); errParam != "" {
-		http.Error(w, "Slack OAuth error: "+errParam, http.StatusBadRequest)
+		// Echo Slack's code (e.g. access_denied) only if it looks like one: the parameter
+		// is attacker-controlled and this response is shown in the browser.
+		msg := "The Slack install was not completed."
+		if slackErrorCode.MatchString(errParam) {
+			msg += " Slack said: " + errParam
+		}
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
 	state := r.FormValue("state")
 	code := r.FormValue("code")
-	redirectURI := h.redirectURI(r)
+	redirectURI := h.redirectURI()
 
 	switch {
 	case state == "" && code == "":
-		http.Redirect(w, r, h.installURL(r), http.StatusFound)
+		http.Redirect(w, r, h.installURL(), http.StatusFound)
 		return
 	case state == "":
 		// Installs started on Slack's side (Marketplace button, shareable URL, app settings)
@@ -136,7 +158,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		// the bot into the forger's own workspace. Those flows send no redirect_uri, so the
 		// exchange must omit it too.
 		redirectURI = ""
-	case !verifySignedOAuthState(h.stateSecret, state):
+	case !verifySignedOAuthState(h.stateKey, state):
 		http.Error(w, "invalid OAuth state", http.StatusBadRequest)
 		return
 	case code == "":
@@ -147,7 +169,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	teamID, token, err := h.exchangeCode(r.Context(), code, redirectURI)
 	if err != nil {
 		slog.Error("oauth code exchange failed", "kind", "oauth", "err", err)
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, "Could not complete the Slack install. Please try again.", http.StatusBadGateway)
 		return
 	}
 
@@ -192,7 +214,7 @@ func (h *OAuthHandler) exchangeCode(ctx context.Context, code, redirectURI strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return "", "", fmt.Errorf("read oauth response: %w", err)
 	}
@@ -261,16 +283,4 @@ func verifySignedOAuthState(secret string, state string) bool {
 		skew = -skew
 	}
 	return skew <= int64(oauthStateMaxAge.Seconds())
-}
-
-func inferPublicBaseURL(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	host := r.Host
-	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
-		host = h
-	}
-	return scheme + "://" + host
 }
