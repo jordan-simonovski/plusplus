@@ -23,6 +23,7 @@ const reactionTierAttrPrefix = "t_"
 // DynamoReactionStore tracks the tier emojis each reactor has on a message. Every
 // change is one atomic UpdateItem returning the row as it was before, so concurrent
 // reactions from the same person can't double-count.
+// It also remembers who each typed karma message credited (RecordKarmaTargets).
 // ponytail: rows are never expired; add a DynamoDB TTL attribute if storage ever matters.
 type DynamoReactionStore struct {
 	client *dynamodb.Client
@@ -68,6 +69,51 @@ func (s *DynamoReactionStore) RemoveReaction(ctx context.Context, teamID, channe
 		return nil, fmt.Errorf("remove reaction: %w", err)
 	}
 	return storedTiers(out.Attributes), nil
+}
+
+// karmaMessageRowPrefix marks one row per typed karma message, holding who it
+// credited, so reactions to that message go to them instead of the poster.
+const karmaMessageRowPrefix = "#km#"
+
+const attrKarmaTargets = "targets"
+
+// RecordKarmaTargets remembers the users a typed karma message credited. An empty
+// list (a user-group-only message) is still recorded so reactions credit nobody.
+func (s *DynamoReactionStore) RecordKarmaTargets(ctx context.Context, teamID, channelID, messageTS string, targets []string) error {
+	_, err := s.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.table),
+		Item: map[string]types.AttributeValue{
+			attrTeamID:       &types.AttributeValueMemberS{Value: teamID},
+			attrUserID:       &types.AttributeValueMemberS{Value: karmaMessageRowPrefix + channelID + "#" + messageTS},
+			attrKarmaTargets: &types.AttributeValueMemberS{Value: strings.Join(targets, " ")},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("record karma targets: %w", err)
+	}
+	return nil
+}
+
+// KarmaTargets returns the users a message credited; ok is false if it wasn't a
+// typed karma message.
+func (s *DynamoReactionStore) KarmaTargets(ctx context.Context, teamID, channelID, messageTS string) ([]string, bool, error) {
+	out, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(s.table),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: teamID},
+			attrUserID: &types.AttributeValueMemberS{Value: karmaMessageRowPrefix + channelID + "#" + messageTS},
+		},
+		// A reaction can land milliseconds after the message is recorded.
+		ConsistentRead: aws.Bool(true),
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("get karma targets: %w", err)
+	}
+	v, ok := out.Item[attrKarmaTargets].(*types.AttributeValueMemberS)
+	if !ok {
+		return nil, false, nil
+	}
+	return strings.Fields(v.Value), true, nil
 }
 
 func (s *DynamoReactionStore) key(teamID, channelID, messageTS, reactorID string) map[string]types.AttributeValue {

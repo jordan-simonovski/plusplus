@@ -42,10 +42,32 @@ func (m memReactionState) RemoveReaction(_ context.Context, _, ch, ts, who, emoj
 	return before, nil
 }
 
+// Karma message targets live under their own key; the int is the target's position.
+func (m memReactionState) RecordKarmaTargets(_ context.Context, _, ch, ts string, targets []string) error {
+	m["#km#"+ch+ts] = map[string]int{}
+	for i, t := range targets {
+		m["#km#"+ch+ts][t] = i
+	}
+	return nil
+}
+
+func (m memReactionState) KarmaTargets(_ context.Context, _, ch, ts string) ([]string, bool, error) {
+	row, ok := m["#km#"+ch+ts]
+	if !ok {
+		return nil, false, nil
+	}
+	targets := make([]string, len(row))
+	for t, i := range row {
+		targets[i] = t
+	}
+	return targets, true, nil
+}
+
 type deltaRecorder struct {
 	runs    *[]string
 	skipWar *[]bool
 	failN   *int // fail this many calls before succeeding
+	failOn  *int // counts down calls; the call that takes it to 0 fails
 }
 
 func (d deltaRecorder) HandleAction(_ context.Context, a domain.KarmaAction) (domain.KarmaResult, error) {
@@ -53,11 +75,61 @@ func (d deltaRecorder) HandleAction(_ context.Context, a domain.KarmaAction) (do
 		*d.failN--
 		return domain.KarmaResult{}, errors.New("dynamo down")
 	}
+	if d.failOn != nil {
+		if *d.failOn--; *d.failOn == 0 {
+			return domain.KarmaResult{}, errors.New("dynamo down")
+		}
+	}
 	*d.runs = append(*d.runs, a.TargetUserID+" "+a.SymbolRun)
 	if d.skipWar != nil {
 		*d.skipWar = append(*d.skipWar, a.SkipWar)
 	}
-	return domain.KarmaResult{Message: "applied"}, nil
+	return domain.KarmaResult{ShouldPersist: true, Message: "applied"}, nil
+}
+
+// failingStore makes the karma-message target calls fail.
+type failingStore struct {
+	memReactionState
+	failRecord, failLookup bool
+}
+
+func (f failingStore) RecordKarmaTargets(ctx context.Context, team, ch, ts string, targets []string) error {
+	if f.failRecord {
+		return errors.New("dynamo down")
+	}
+	return f.memReactionState.RecordKarmaTargets(ctx, team, ch, ts, targets)
+}
+
+func (f failingStore) KarmaTargets(ctx context.Context, team, ch, ts string) ([]string, bool, error) {
+	if f.failLookup {
+		return nil, false, errors.New("dynamo down")
+	}
+	return f.memReactionState.KarmaTargets(ctx, team, ch, ts)
+}
+
+// postKarma sends a typed karma message from U2 at ts and returns the HTTP status.
+func postKarma(p *EventsProcessor, ts, text string) int {
+	body := []byte(`{"type":"event_callback","team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
+		"event":{"type":"app_mention","user":"U2","text":"<@UBOT> ` + text + `","channel":"C1","ts":"` + ts + `","event_ts":"` + ts + `"}}`)
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+	addSlackSignatureHeaders(req, "secret", body)
+	rec := httptest.NewRecorder()
+	p.ProcessEvent(rec, req)
+	return rec.Code
+}
+
+// reactAt sends a reaction event on the message at ts (authored by U2) and returns the HTTP status.
+func reactAt(p *EventsProcessor, kind, ts, reactor, emoji string, headers ...string) int {
+	body := []byte(strings.Replace(string(reactionEvent(kind, reactor, "U2", emoji)), `"ts":"100.1"`, `"ts":"`+ts+`"`, 1))
+	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+	addSlackSignatureHeaders(req, "secret", body)
+	for i := 0; i+1 < len(headers); i += 2 {
+		req.Header.Set(headers[i], headers[i+1])
+	}
+	rec := httptest.NewRecorder()
+	p.ProcessEvent(rec, req)
+	return rec.Code
 }
 
 // mutableTiers lets a test remap emojis between events.
@@ -131,6 +203,94 @@ func TestReactionKarmaHighestTierAndUndo(t *testing.T) {
 		if post.threadTS != "100.1" {
 			t.Fatalf("reply should thread on the reacted message, got %q", post.threadTS)
 		}
+	}
+}
+
+func TestReactionsOnTypedKarmaCreditTheMentionedPeople(t *testing.T) {
+	var runs []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+
+	post := func(ts, text string) {
+		if code := postKarma(p, ts, text); code != http.StatusOK {
+			t.Fatalf("post %q: status %d", text, code)
+		}
+	}
+	react := func(kind, ts, reactor, emoji string) {
+		if code := reactAt(p, kind, ts, reactor, emoji); code != http.StatusOK {
+			t.Fatalf("%s %s: status %d", kind, emoji, code)
+		}
+	}
+
+	post("100.1", "<@U3> -- <@U4> --") // U2 docks U3 and U4
+	post("100.2", "<!subteam^S1|@team> ++")
+	runs, web.posts = nil, nil
+
+	react("reaction_added", "100.1", "U1", "fire")   // emojis keep their meaning: +4 to each mentioned person
+	react("reaction_added", "100.1", "U3", "clap")   // a mentioned person can't credit themselves: U4 only
+	react("reaction_added", "100.1", "U2", "trophy") // the poster reacting to their own message: ignored
+	react("reaction_added", "100.2", "U1", "fire")   // user-group award: credits nobody
+	react("reaction_added", "100.9", "U1", "clap")   // ordinary message: the author, as before
+	react("reaction_removed", "100.1", "U1", "fire") // removal takes it back from the same people
+	react("reaction_removed", "100.1", "U3", "clap") // and still skips the reactor
+
+	want := "U3 +++++,U4 +++++,U4 ++,U2 ++,U3 -----,U4 -----,U4 --"
+	if got := strings.Join(runs, ","); got != want {
+		t.Fatalf("karma runs = %s, want %s", got, want)
+	}
+	if len(web.posts) != 3 || web.posts[0].text != "applied\napplied" {
+		t.Fatalf("expected one combined reply per award, got %+v", web.posts)
+	}
+}
+
+func TestReactionPartialFailureReversesAndRetriesCleanly(t *testing.T) {
+	var runs []string
+	failOn := -1 // disarmed while the typed message is posted
+	state := memReactionState{}
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs, failOn: &failOn}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, state, 5)
+
+	if code := postKarma(p, "100.1", "<@U3> ++ <@U4> ++"); code != http.StatusOK {
+		t.Fatalf("post: status %d", code)
+	}
+	runs = nil
+	failOn = 2 // now the reaction's second target fails
+
+	if code := reactAt(p, "reaction_added", "100.1", "U1", "fire"); code != http.StatusInternalServerError {
+		t.Fatalf("a failed award should ask Slack to retry, got %d", code)
+	}
+	if got := strings.Join(runs, ","); got != "U3 +++++,U3 -----" {
+		t.Fatalf("the first target's karma should be reversed, got %s", got)
+	}
+	if len(state["C1100.1U1"]) != 0 {
+		t.Fatalf("reaction state should be rolled back, got %v", state["C1100.1U1"])
+	}
+
+	runs = nil
+	if code := reactAt(p, "reaction_added", "100.1", "U1", "fire", "X-Slack-Retry-Num", "1", "X-Slack-Retry-Reason", "http_error"); code != http.StatusOK {
+		t.Fatalf("retry status %d", code)
+	}
+	reactAt(p, "reaction_removed", "100.1", "U1", "fire")
+	if got := strings.Join(runs, ","); got != "U3 +++++,U4 +++++,U3 -----,U4 -----" {
+		t.Fatalf("retry should credit everyone once and removal take it all back, got %s", got)
+	}
+}
+
+func TestKarmaMessageStoreFailuresAreSafeToRetry(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).
+		WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5)
+	if code := postKarma(p, "100.1", "<@U3> ++"); code != http.StatusInternalServerError || len(runs) != 0 {
+		t.Fatalf("a failed record must apply no karma and ask for a retry: code %d runs %v", code, runs)
+	}
+
+	state := memReactionState{}
+	p = NewEventsProcessor("secret", deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).
+		WithReactions(defaultTiers{}, failingStore{memReactionState: state, failLookup: true}, 5)
+	if code := reactAt(p, "reaction_added", "100.1", "U1", "fire"); code != http.StatusInternalServerError || len(runs) != 0 {
+		t.Fatalf("a failed lookup must apply no karma and ask for a retry: code %d runs %v", code, runs)
+	}
+	if len(state["C1100.1U1"]) != 0 {
+		t.Fatalf("reaction state should be rolled back, got %v", state["C1100.1U1"])
 	}
 }
 

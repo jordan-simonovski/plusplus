@@ -3,7 +3,7 @@
 Slack karma service implemented in Go, designed as a long-running container.
 
 ## Features
-- Applies karma from emoji reactions (`reaction_added` / `reaction_removed`): 👏 🙌 ⭐ 🔥 🏆 give 1–5, 🙄 👎 🤡 💩 🗑️ take 1–5. Each reactor's strongest reaction on a message counts. Channels and workspaces can remap tiers to their own emojis with `/plusplus-settings emoji`.
+- Applies karma from emoji reactions (`reaction_added` / `reaction_removed`): 👏 🙌 ⭐ 🔥 🏆 give 1–5, 🙄 👎 🤡 💩 🗑️ take 1–5. Each reactor's strongest reaction on a message counts. Reactions to a typed karma message (`@plusplus @sam ++`) go to the people it credited, not the poster. Channels and workspaces can remap tiers to their own emojis with `/plusplus-settings emoji`.
 - Applies karma from `@user ++` text: via `app_mention` (`@plusplus @sam ++`) everywhere, and from plain channel messages (`message` events) when the app has the `*:history` scopes (self-hosted).
 - Supports `+` and `-` runs with discord-karma parity rules (min 2 symbols, cap at 6 symbols => max delta 5).
 - Slash commands:
