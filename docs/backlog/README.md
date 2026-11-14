@@ -14,7 +14,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 02 | [Integration tests in CI](02-integration-tests-in-ci.md) | The DynamoDB layer has 0% coverage in the default run | S |
 | 03 | [Make typed karma safe to retry](03-event-idempotency.md) | A Slack retry gives the same karma twice | M |
 | 04 | [Log every failure](04-log-failures.md) | Most 5xx paths return without logging the cause | M |
 | 05 | [Validate config at startup](05-config-validation.md) | Bad settings start a server that silently rejects everything | S |

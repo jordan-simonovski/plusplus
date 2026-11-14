@@ -3,39 +3,19 @@
 package persistence
 
 import (
-	"context"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	appconfig "plusplus/internal/config"
 	"plusplus/internal/domain"
 )
 
 // Reaction karma depends on DynamoDB returning the set as it was before each
 // ADD/DELETE, and on reaction rows staying out of the leaderboard.
 func TestDynamoReactionStoreAndOverridesIntegration(t *testing.T) {
-	cfg, err := appconfig.Load()
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.DynamoDBEndpoint == "" {
-		t.Skip("DYNAMODB_ENDPOINT not set")
-	}
-	cfg.KarmaTable = "plusplus_karma_it"
-	cfg.SettingsTable = "plusplus_channel_settings_it"
-	cfg.WorkspacesTable = "plusplus_workspaces_it"
-
-	ctx := context.Background()
-	client, err := NewDynamoClient(ctx, cfg)
-	if err != nil {
-		t.Fatalf("dynamo client: %v", err)
-	}
-	if err := EnsureTables(ctx, client, cfg); err != nil {
-		t.Fatalf("ensure tables: %v", err)
-	}
+	ctx, client, cfg := integrationSetup(t)
 
 	store := NewDynamoReactionStore(client, cfg.KarmaTable)
 	// Unique per run so a failed earlier run can't leave state behind.
@@ -56,6 +36,7 @@ func TestDynamoReactionStoreAndOverridesIntegration(t *testing.T) {
 	}
 	for i, s := range steps {
 		var got map[string]int
+		var err error
 		if s.add {
 			got, err = store.AddReaction(ctx, team, "C1", ts, "U1", s.emoji, s.tier)
 		} else {

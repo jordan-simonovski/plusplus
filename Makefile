@@ -25,7 +25,7 @@ test:
 check: fmt-check lint test
 
 test-integration:
-	DYNAMODB_ENDPOINT=http://localhost:8000 AWS_REGION=ap-southeast-2 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local go test -tags=integration ./internal/persistence -v
+	DYNAMODB_ENDPOINT=http://localhost:8000 AWS_REGION=ap-southeast-2 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local go test -count=1 -tags=integration ./internal/persistence -v
 
 run:
 	PORT=8080 AWS_REGION=ap-southeast-2 DYNAMODB_ENDPOINT=http://localhost:8000 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local SLACK_SIGNING_SECRET=dev-signing-secret SLACK_BOT_TOKEN=xoxb-local-token go run $(APP_ENTRY)

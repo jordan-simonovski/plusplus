@@ -3,14 +3,11 @@
 package persistence
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	appconfig "plusplus/internal/config"
 )
 
 // Run against DynamoDB Local:
@@ -18,26 +15,7 @@ import (
 //	DYNAMODB_ENDPOINT=http://localhost:8000 AWS_REGION=us-east-1 \
 //	  go test -tags=integration ./internal/persistence -v
 func TestDynamoRepositoriesIntegration(t *testing.T) {
-	cfg, err := appconfig.Load()
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.DynamoDBEndpoint == "" {
-		t.Skip("DYNAMODB_ENDPOINT not set; skipping DynamoDB integration test")
-	}
-	// Isolate from any real tables.
-	cfg.KarmaTable = "plusplus_karma_it"
-	cfg.SettingsTable = "plusplus_channel_settings_it"
-	cfg.WorkspacesTable = "plusplus_workspaces_it"
-
-	ctx := context.Background()
-	client, err := NewDynamoClient(ctx, cfg)
-	if err != nil {
-		t.Fatalf("dynamo client: %v", err)
-	}
-	if err := EnsureTables(ctx, client, cfg); err != nil {
-		t.Fatalf("ensure tables: %v", err)
-	}
+	ctx, client, cfg := integrationSetup(t)
 
 	karmaRepo := NewDynamoKarmaRepository(client, cfg.KarmaTable)
 	settingsRepo := NewDynamoSettingsRepository(client, cfg.SettingsTable)

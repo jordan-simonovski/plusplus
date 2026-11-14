@@ -29,3 +29,25 @@ jobs:
 
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      dynamodb:
+        # Keep in step with docker-compose.yml.
+        image: amazon/dynamodb-local:3.3.2
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # GitHub has no readiness check for this image; any HTTP reply (DynamoDB answers a
+      # bare GET with 400) means it is accepting connections.
+      - name: Wait for DynamoDB Local
+        run: timeout 60 sh -c 'until curl -s -o /dev/null http://localhost:8000; do sleep 1; done'
+
+      - run: make test-integration
