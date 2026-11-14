@@ -21,9 +21,9 @@ Slack karma service implemented in Go, designed as a long-running container.
 - `DYNAMODB_KARMA_TABLE` (default: `plusplus_karma`)
 - `DYNAMODB_SETTINGS_TABLE` (default: `plusplus_channel_settings`)
 - `DYNAMODB_WORKSPACES_TABLE` (default: `plusplus_workspaces`)
-- `MAX_KARMA_PER_ACTION` (default: `5`)
-- `SLACK_SIGNING_SECRET` (required for real Slack traffic)
-- `SLACK_BOT_TOKEN` (single-workspace / dev only; used to post via the Slack Web API when OAuth is **not** configured). When `SLACK_CLIENT_ID` is set (multi-tenant OAuth), per-workspace tokens are authoritative and this value is ignored.
+- `MAX_KARMA_PER_ACTION` (default: `5`; a whole number of at least 1)
+- `SLACK_SIGNING_SECRET` (required; the server will not start without it)
+- `SLACK_BOT_TOKEN` (required unless `SLACK_CLIENT_ID` is set; single-workspace / dev only; used to post via the Slack Web API when OAuth is **not** configured). When `SLACK_CLIENT_ID` is set (multi-tenant OAuth), per-workspace tokens are authoritative and this value is ignored.
 - `PUBLIC_BASE_URL` (required when `SLACK_CLIENT_ID` is set; fixes the OAuth `redirect_uri` to a trusted origin instead of inferring it from request headers)
 - `SLACK_OAUTH_SCOPES` (optional; bot scopes `/slack/install` requests. Defaults to the Marketplace set without `*:history`. Self-hosted installs that want plain `@sam ++` add `channels:history,groups:history`.)
 

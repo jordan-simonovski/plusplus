@@ -14,7 +14,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 05 | [Validate config at startup](05-config-validation.md) | Bad settings start a server that silently rejects everything | S |
 | 06 | [Remove the token on uninstall](06-uninstall-token-cleanup.md) | Tokens for uninstalled workspaces are kept forever | M |
 | 07 | [Cap user-group karma](07-group-fanout-cap.md) | One message can trigger unbounded writes and API calls | S |
 | 08 | [OAuth handler cleanup](08-oauth-cleanup.md) | Dead header-trusting code path; errors echoed to browsers | S |
