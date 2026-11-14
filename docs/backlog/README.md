@@ -12,13 +12,8 @@ Do them one at a time, top to bottom, merging each before starting the next. Tha
 always safe. An item has landed when its file no longer exists in `docs/backlog/` on
 `main`; where a brief says "if item N has landed", check for the file.
 
-| # | Item | Why it matters | Size |
-| --- | --- | --- | --- |
-| 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M |
-
-### Running items in parallel
-
-Only item 16 is left.
+Every item from the 2026-11-14 audit has landed; there are no briefs here now. New work
+can be added as numbered briefs in the same shape, with a row in a table here.
 
 Sizes: S is under about 150 changed lines, M is up to about 400.
 
