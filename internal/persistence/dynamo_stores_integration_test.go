@@ -460,3 +460,24 @@ func TestDynamoWorkspaceLegacyTokenUpgradeIntegration(t *testing.T) {
 		t.Fatalf("tampered legacy row: got %q, %v; want an error", got, err)
 	}
 }
+
+// An upgrade only replaces the exact ciphertext it read: a reinstall in between wins.
+func TestDynamoWorkspaceLegacyUpgradeLosesToReinstallIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	enc := testEncryptor(t, 1)
+	repo := NewDynamoWorkspaceRepository(client, cfg.WorkspacesTable, enc)
+	team := uniqueTeam("T-aad-race")
+
+	stale, err := enc.Encrypt([]byte("xoxb-old"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpsertInstallation(ctx, team, "xoxb-new"); err != nil {
+		t.Fatal(err)
+	}
+	repo.upgradeLegacyToken(ctx, team, stale, []byte("xoxb-old"))
+
+	if got, err := repo.GetBotToken(ctx, team); err != nil || got != "xoxb-new" {
+		t.Fatalf("after a stale upgrade: %q, %v; want the reinstalled token", got, err)
+	}
+}

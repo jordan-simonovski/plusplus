@@ -106,7 +106,11 @@ func (r *DynamoWorkspaceRepository) upgradeLegacyToken(ctx context.Context, team
 		})
 	}
 	var changed *types.ConditionalCheckFailedException
-	if err != nil && !errors.As(err, &changed) {
+	switch {
+	case err == nil:
+		// Logged so it's visible when no legacy rows are left and the fallback can go.
+		slog.Info("upgraded legacy token encryption", "team", teamID)
+	case !errors.As(err, &changed):
 		slog.Warn("could not upgrade legacy token encryption", "team", teamID, "err", err)
 	}
 }
