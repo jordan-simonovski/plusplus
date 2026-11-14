@@ -31,7 +31,7 @@ Tables are created automatically on startup (on-demand / pay-per-request billing
 
 ## Local Development
 ### Prerequisites
-- Go 1.24+
+- Go (the version in `go.mod`)
 - Docker + Docker Compose
 
 ### Start local stack

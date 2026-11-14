@@ -17,8 +17,8 @@ Add these files. Keep each short; link rather than repeat.
 1. `CONTRIBUTING.md`
    - Prerequisites: Go (version from `go.mod`), Docker, Node (only for changesets).
    - Run it locally: `make up`, `make run`, `make test-integration`.
-   - The checks a PR must pass (`make check` if item 01 has landed, otherwise the commands
-     in `AGENTS.md`).
+   - The checks a PR must pass (`make check`, and how to install golangci-lint; see
+     `AGENTS.md`).
    - When a changeset is needed and how to write one (`npx changeset`; written for users).
    - Where things live: link to the table in `AGENTS.md` instead of copying it.
    - Using a coding agent is welcome; point it at `AGENTS.md`.
@@ -65,7 +65,7 @@ description for the owner:
 - The description is "give users points". Suggest one sentence that says what it is.
 - No topics are set. Suggest `slack`, `slack-bot`, `karma`, `golang`, `dynamodb`.
 - Enable private vulnerability reporting, which `SECURITY.md` relies on.
-- Require the Go checks (item 01) on `main` through branch protection.
+- Require the `go` workflow's check on `main` through branch protection.
 
 ## Done when
 

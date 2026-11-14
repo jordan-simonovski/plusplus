@@ -15,7 +15,7 @@
 - GitHub lists eight open Dependabot alerts on `main` for `js-yaml` in
   `package-lock.json` (six high, two medium; checked 2026-11-14). `js-yaml` is a
   transitive dependency of the changeset tooling and is not in the shipped binary. (The
-  pgx alert was fixed by item 01.)
+  pgx alert was fixed when Go CI was added.)
 
 ## Change
 

@@ -4,14 +4,19 @@ APP_ENTRY := ./cmd/server
 
 .PHONY: fmt fmt-check lint test check test-integration run build up down logs release
 
+# Go code lives in cmd/ and internal/ (the Dockerfile copies only those). Scoping to them
+# keeps gofmt out of .claude/worktrees and node_modules.
+GO_DIRS := cmd internal
+
 fmt:
-	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+	gofmt -w $(GO_DIRS)
 
 fmt-check:
-	@out="$$(gofmt -l .)"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	@out="$$(gofmt -l $(GO_DIRS))" || exit 1; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 lint:
 	go vet ./...
+	go vet -tags=integration ./internal/persistence
 	golangci-lint run ./...
 
 test:
