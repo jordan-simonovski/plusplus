@@ -14,7 +14,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 07 | [Cap user-group karma](07-group-fanout-cap.md) | One message can trigger unbounded writes and API calls | S |
 | 08 | [OAuth handler cleanup](08-oauth-cleanup.md) | Dead header-trusting code path; errors echoed to browsers | S |
 | 09 | [Bind token ciphertext to its workspace](09-token-aad.md) | Stored tokens can be swapped between workspaces undetected | S |
 | 10 | [Contributor and issue scaffolding](10-community-health.md) | No contributing guide, security policy or issue forms | M |

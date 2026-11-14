@@ -91,7 +91,7 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           server.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
-		// ponytail: no WriteTimeout; group karma fan-out runs inside the request.
+		// ponytail: no WriteTimeout; group karma (capped at 50 members) runs inside the request.
 		ReadTimeout: 30 * time.Second,
 		IdleTimeout: 120 * time.Second,
 	}
