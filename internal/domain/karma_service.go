@@ -89,7 +89,7 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 			Sign:   sign,
 		})
 		if err != nil {
-			slog.Warn("karma war store failed", "team", action.TeamID, "kind", "karma", "err", err)
+			slog.Warn("karma war store failed", "team", action.TeamID, "err", err)
 		}
 		if line != "" {
 			message += "\n" + line

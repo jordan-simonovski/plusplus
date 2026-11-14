@@ -285,7 +285,7 @@ func (p *CommandsProcessor) respondEmoji(w http.ResponseWriter, r *http.Request,
 	case errors.As(err, &input):
 		msg = input.Msg + ". Example: `/plusplus-settings emoji 3 :partyparrot:`."
 	case err != nil:
-		slog.Error("emoji settings failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
+		slog.Warn("emoji settings failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		msg = "Couldn't update karma emojis just now. Please try again."
 	}
 	writeJSON(w, http.StatusOK, MessageResponse{ResponseType: "ephemeral", Text: msg})

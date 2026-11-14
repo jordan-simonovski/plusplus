@@ -20,6 +20,9 @@ import (
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	// The standard log package now writes through slog. Only fatal startup errors and
+	// net/http server errors still use it, so log those at error level.
+	slog.SetLogLoggerLevel(slog.LevelError)
 
 	cfg, err := config.Load()
 	if err != nil {

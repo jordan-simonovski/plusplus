@@ -377,7 +377,7 @@ func (p *EventsProcessor) handleSubteamKarma(
 
 	// Record the group-level action and pick up any "karma train" snark. Done
 	// once per award (not per member) so repeated awards to the same group chain.
-	warLine := p.observeGroupAward(ctx, envelope.TeamID, envelope.Event.User, seg.SubteamID, seg.SymbolRun, snarkLevel)
+	warLine := p.observeGroupAward(ctx, envelope.TeamID, envelope.Event.Type, envelope.Event.User, seg.SubteamID, seg.SymbolRun, snarkLevel)
 
 	if len(lines) == 0 {
 		return nil
@@ -415,7 +415,7 @@ type groupAwardObserver interface {
 	ObserveGroupAward(ctx context.Context, teamID, actorID, groupID string, sign, snarkLevel int) (string, error)
 }
 
-func (p *EventsProcessor) observeGroupAward(ctx context.Context, teamID, actorID, groupID, symbolRun string, snarkLevel int) string {
+func (p *EventsProcessor) observeGroupAward(ctx context.Context, teamID, kind, actorID, groupID, symbolRun string, snarkLevel int) string {
 	obs, ok := p.karmaService.(groupAwardObserver)
 	if !ok {
 		return ""
@@ -426,7 +426,7 @@ func (p *EventsProcessor) observeGroupAward(ctx context.Context, teamID, actorID
 	}
 	line, err := obs.ObserveGroupAward(ctx, teamID, actorID, groupID, sign, snarkLevel)
 	if err != nil {
-		slog.Warn("karma war store failed", "team", teamID, "kind", "group_award", "err", err)
+		slog.Warn("karma war store failed", "team", teamID, "kind", kind, "err", err)
 	}
 	return line
 }
@@ -511,7 +511,7 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 
 	targets, err := p.reactionTargets(ctx, team, channel, ts, ev.ItemUser, reactor)
 	if err != nil {
-		p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
+		p.restoreReaction(ctx, ev.Type, team, channel, ts, reactor, emoji, before)
 		return err
 	}
 	if len(targets) == 0 {
@@ -542,8 +542,8 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 			// Take back what this event already gave and put the reaction state back, so
 			// Slack's retry applies the same delta to everyone. Nobody is left holding a
 			// partial award that a later removal would undo from people who never got it.
-			p.reverseKarma(ctx, team, reactor, applied, -delta, snarkLevel)
-			p.restoreReaction(ctx, team, channel, ts, reactor, emoji, before)
+			p.reverseKarma(ctx, ev.Type, team, reactor, applied, -delta, snarkLevel)
+			p.restoreReaction(ctx, ev.Type, team, channel, ts, reactor, emoji, before)
 			return err
 		}
 		if result.ShouldPersist {
@@ -574,7 +574,7 @@ func symbolRun(delta int) string {
 // reverseKarma applies delta to each target to undo karma this event already gave.
 // ponytail: best effort; if a reversal also fails that target keeps the karma and
 // Slack's retry gives it again. Fine while ApplyDelta failures are rare and brief.
-func (p *EventsProcessor) reverseKarma(ctx context.Context, team, reactor string, targets []string, delta, snarkLevel int) {
+func (p *EventsProcessor) reverseKarma(ctx context.Context, kind, team, reactor string, targets []string, delta, snarkLevel int) {
 	for _, target := range targets {
 		if _, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
 			TeamID:       team,
@@ -585,7 +585,7 @@ func (p *EventsProcessor) reverseKarma(ctx context.Context, team, reactor string
 			SnarkLevel:   snarkLevel,
 			SkipWar:      true,
 		}); err != nil {
-			slog.Warn("could not reverse reaction karma", "team", team, "kind", "reaction", "err", err)
+			slog.Warn("could not reverse reaction karma", "team", team, "kind", kind, "err", err)
 		}
 	}
 }
@@ -610,7 +610,7 @@ func (p *EventsProcessor) reactionTargets(ctx context.Context, team, channel, ts
 }
 
 // restoreReaction sets emoji back to its state in before (best effort).
-func (p *EventsProcessor) restoreReaction(ctx context.Context, team, channel, ts, reactor, emoji string, before map[string]int) {
+func (p *EventsProcessor) restoreReaction(ctx context.Context, kind, team, channel, ts, reactor, emoji string, before map[string]int) {
 	var err error
 	if prev, ok := before[emoji]; ok {
 		_, err = p.reactionState.AddReaction(ctx, team, channel, ts, reactor, emoji, prev)
@@ -618,6 +618,6 @@ func (p *EventsProcessor) restoreReaction(ctx context.Context, team, channel, ts
 		_, err = p.reactionState.RemoveReaction(ctx, team, channel, ts, reactor, emoji)
 	}
 	if err != nil {
-		slog.Warn("could not restore reaction state", "team", team, "kind", "reaction", "channel", channel, "err", err)
+		slog.Warn("could not restore reaction state", "team", team, "kind", kind, "channel", channel, "err", err)
 	}
 }
