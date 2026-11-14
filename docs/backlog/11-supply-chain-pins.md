@@ -12,7 +12,17 @@
 - There is no `.github/dependabot.yml`. Dependabot security updates are evidently on (PR
   #1 is one), but nothing proposes routine updates for Go modules, actions, npm or images.
 
+- GitHub lists nine open Dependabot alerts on `main` (checked 2026-11-14): eight for
+  `js-yaml` in `package-lock.json` (six high, two medium), and one low for
+  `github.com/jackc/pgx/v5`. `js-yaml` is a transitive dependency of the changeset
+  tooling and is not in the shipped binary; pgx is used only by `cmd/migrate`.
+
 ## Change
+
+0. Clear the `js-yaml` alerts: run `npm audit fix`, confirm `npm audit` reports nothing
+   high, and confirm `npx changeset status` and `node landing/scripts/build-changelog.mjs`
+   still run. For pgx, merge or recreate Dependabot PR #1 unless item 18 has removed
+   `cmd/migrate`. List the alerts that remain open, if any, in the PR description.
 
 1. Add `.github/dependabot.yml` with weekly updates for four ecosystems: `gomod` at `/`,
    `github-actions` at `/`, `npm` at `/`, and `docker` at `/`. Group minor and patch
