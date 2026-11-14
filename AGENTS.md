@@ -26,7 +26,6 @@ say so in the PR description.
 | Path | Holds | May import |
 | --- | --- | --- |
 | `cmd/server` | Wiring only: config, clients, handlers, HTTP server | everything |
-| `cmd/migrate` | One-off Postgres to DynamoDB migration tool | config, persistence |
 | `internal/config` | Environment variables and their validation | crypto |
 | `internal/domain` | Karma rules, karma service, reaction tiers, karma-war detection, all reply copy | standard library only |
 | `internal/parser` | Turns message text into karma segments (`<@U…> ++`) | standard library only |
@@ -94,8 +93,8 @@ say so instead of working around it.
 
 ## Conventions
 
-- Standard library first. Do not add a dependency without asking; the module has two
-  direct dependencies (AWS SDK, pgx for the migration tool) and that is deliberate.
+- Standard library first. Do not add a dependency without asking; the module's only direct
+  dependency is the AWS SDK, and that is deliberate.
 - Wrap errors with `%w` and context (`fmt.Errorf("apply karma delta: %w", err)`). Text
   shown to Slack users must come from `InputError` or from fixed copy, never from a raw
   error. (`respondSnarkText` and the user-group path still echo an error today; do not

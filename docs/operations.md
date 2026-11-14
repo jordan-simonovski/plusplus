@@ -79,28 +79,6 @@ For multi-workspace OAuth install (the `/slack/install` flow), also set:
 3. Set `PUBLIC_BASE_URL=https://api.pluspluskarma.dev` and redeploy.
 4. Apply the updated `slack-app-manifest.yaml` so Slack's request/redirect URLs use the custom domain.
 
-### Migrating existing data from Supabase
-The one-time `cmd/migrate` tool copies the three tables (`karma_totals`, `channel_settings`, `slack_workspaces`) into DynamoDB. Bot-token ciphertext is copied as-is, so no encryption key is needed. It is idempotent (uses `PutItem`), so it is safe to re-run.
-
-**From a Supabase SQL export (recommended — no Postgres needed).** Supabase's "Download backup" gives you a `schema.sql` and a `data.sql` (plain `pg_dump`). Point the tool at the data file; it parses the `COPY` blocks directly and ignores the `auth.*`/`storage.*` noise:
-
-```bash
-AWS_REGION=<region> AWS_ACCESS_KEY_ID=<id> AWS_SECRET_ACCESS_KEY=<secret> \
-go run ./cmd/migrate data.sql
-```
-
-(Do not try to restore `schema.sql` into a vanilla Postgres — it references Supabase-only roles and extensions and will error.)
-
-**From a live Postgres connection** (if the old database is still up):
-
-```bash
-DATABASE_URL=<old supabase connection string> \
-AWS_REGION=<region> AWS_ACCESS_KEY_ID=<id> AWS_SECRET_ACCESS_KEY=<secret> \
-go run ./cmd/migrate
-```
-
-Once cutover is verified, `cmd/migrate` and the `pgx` dependency can be deleted.
-
 ### 4) Configure Slack callback URLs
 After Railway deploys and you have a public URL (custom domain `https://api.pluspluskarma.dev` or the default `https://<railway-domain>`):
 

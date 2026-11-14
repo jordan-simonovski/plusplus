@@ -97,7 +97,9 @@ ngrok http 8080
 ## Operations
 
 How the hosted app is deployed (DynamoDB, Railway, Terraform and its CI) is in
-[docs/operations.md](docs/operations.md).
+[docs/operations.md](docs/operations.md). The one-off Postgres (Supabase) to DynamoDB
+migration tool, `cmd/migrate`, was removed after the cutover; it is in commit `01f05bb`
+if you still need it.
 
 ## Licence
 
