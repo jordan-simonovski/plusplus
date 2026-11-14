@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"plusplus/internal/domain"
@@ -125,70 +126,99 @@ func (p *EventsProcessor) HandleEvent(w http.ResponseWriter, r *http.Request, bo
 		return
 	}
 
-	if envelope.Type == "event_callback" && uninstallsBot(envelope.Event) {
-		// Removing twice is harmless, so an error is safe for Slack to retry.
-		if p.installs != nil {
-			ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 10*time.Second)
-			defer cancel()
-			if err := p.installs.RemoveInstallation(ctx, envelope.TeamID, eventTime(envelope)); err != nil {
-				slog.Error("remove installation failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-				http.Error(w, "failed to remove installation", http.StatusInternalServerError)
-				return
-			}
-			slog.Info("installation removed", "team", envelope.TeamID, "kind", envelope.Event.Type)
-		}
-		ack(w)
-		return
-	}
-
-	if envelope.Type == "event_callback" && isReactionEvent(envelope.Event.Type) {
+	// The work runs on a context detached from the request so it finishes even if Slack
+	// disconnects at its 3s deadline.
+	var err error
+	switch {
+	case envelope.Type == "event_callback" && uninstallsBot(envelope.Event):
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 10*time.Second)
+		defer cancel()
+		err = p.handleUninstall(ctx, envelope)
+	case envelope.Type == "event_callback" && isReactionEvent(envelope.Event.Type):
 		// A timeout retry means the first delivery is still running (it doesn't stop when
 		// Slack hangs up), so processing it again would double-apply or resurrect a
 		// reaction that was removed in between. Error retries are processed normally.
 		if r.Header.Get("X-Slack-Retry-Reason") == "http_timeout" {
-			ack(w)
-			return
+			break
 		}
-		// Finish the work even if Slack disconnects at its 3s deadline.
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
 		defer cancel()
-		if err := p.handleReaction(ctx, envelope); err != nil {
-			slog.Error("reaction karma failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-			http.Error(w, "failed to apply reaction karma", http.StatusInternalServerError)
-			return
+		if rerr := p.handleReaction(ctx, envelope); rerr != nil {
+			err = &eventFailure{status: http.StatusInternalServerError, body: "failed to apply reaction karma", log: "reaction karma failed", err: rerr}
 		}
+	case karmaEventIgnored(envelope):
+	default:
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
+		defer cancel()
+		err = p.handleKarmaMessage(ctx, envelope)
+	}
+
+	respond(w, envelope, err)
+}
+
+// respond acknowledges a handled event, or logs the failure once and answers with its
+// status. An error a handler didn't classify still fails closed: a logged 500, so Slack
+// retries.
+func respond(w http.ResponseWriter, envelope EventEnvelope, err error) {
+	if err == nil {
 		ack(w)
 		return
 	}
+	var failure *eventFailure
+	if !errors.As(err, &failure) {
+		failure = &eventFailure{status: http.StatusInternalServerError, body: "failed to handle event", log: "event handling failed", err: err}
+	}
+	slog.Error(failure.log, "team", envelope.TeamID, "kind", envelope.Event.Type, "err", failure.err)
+	http.Error(w, failure.body, failure.status)
+}
 
+// eventFailure is a handler error together with the response Slack gets and the log line
+// operators see. Handlers return it so HandleEvent stays free of per-path status codes.
+type eventFailure struct {
+	status int
+	body   string
+	log    string
+	err    error
+}
+
+func (e *eventFailure) Error() string { return e.log + ": " + e.err.Error() }
+func (e *eventFailure) Unwrap() error { return e.err }
+
+// handleUninstall drops the workspace's stored bot token. Removing twice is harmless, so an
+// error is safe for Slack to retry.
+func (p *EventsProcessor) handleUninstall(ctx context.Context, envelope EventEnvelope) error {
+	if p.installs == nil {
+		return nil
+	}
+	if err := p.installs.RemoveInstallation(ctx, envelope.TeamID, eventTime(envelope)); err != nil {
+		return &eventFailure{status: http.StatusInternalServerError, body: "failed to remove installation", log: "remove installation failed", err: err}
+	}
+	slog.Info("installation removed", "team", envelope.TeamID, "kind", envelope.Event.Type)
+	return nil
+}
+
+// karmaEventIgnored reports whether an event must not give karma.
+func karmaEventIgnored(envelope EventEnvelope) bool {
 	if envelope.Type != "event_callback" || !isSupportedKarmaEventType(envelope.Event.Type) {
-		ack(w)
-		return
+		return true
 	}
-
 	// Only plain "message sent" events have no subtype (Slack omits it). Anything else
 	// (message_changed, bot_message, channel_join, file_share, …) must not apply karma.
 	if envelope.Event.Subtype != "" || envelope.Event.BotID != "" {
-		ack(w)
-		return
+		return true
 	}
-
 	// Slack delivers both app_mention and message for the same post when the bot is @-mentioned.
 	// Process app_mention only; otherwise karma is applied twice.
-	if envelope.Event.Type == "message" && messageEventDuplicatesAppMention(envelope) {
-		ack(w)
-		return
-	}
+	return envelope.Event.Type == "message" && messageEventDuplicatesAppMention(envelope)
+}
 
+// handleKarmaMessage applies the karma typed in a message and posts the replies. It
+// returns an *eventFailure carrying the status Slack should get.
+func (p *EventsProcessor) handleKarmaMessage(ctx context.Context, envelope EventEnvelope) error {
 	segments := parser.DedupeKarmaSegments(parser.ParseKarmaSegments(stripBotMention(envelope)))
 	if len(segments) == 0 {
-		ack(w)
-		return
+		return nil
 	}
-
-	// Finish the work even if Slack disconnects at its 3s deadline.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 15*time.Second)
-	defer cancel()
 
 	// Claim the event before writing anything. Once karma may have been written the claim
 	// is kept even on failure: a dropped award is visible and can be retyped, a doubled one
@@ -197,13 +227,10 @@ func (p *EventsProcessor) HandleEvent(w http.ResponseWriter, r *http.Request, bo
 	if p.events != nil && envelope.EventID != "" {
 		ok, err := p.events.ClaimEvent(ctx, envelope.TeamID, envelope.EventID)
 		if err != nil {
-			slog.Error("claim event failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-			http.Error(w, "failed to claim event", http.StatusInternalServerError)
-			return
+			return &eventFailure{status: http.StatusInternalServerError, body: "failed to claim event", log: "claim event failed", err: err}
 		}
 		if !ok {
-			ack(w)
-			return
+			return nil
 		}
 		claimed = true
 	}
@@ -217,12 +244,10 @@ func (p *EventsProcessor) HandleEvent(w http.ResponseWriter, r *http.Request, bo
 			}
 		}
 		if err := p.reactionState.RecordKarmaTargets(ctx, envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
-			slog.Error("record karma message failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
 			if claimed {
 				p.releaseEvent(ctx, envelope)
 			}
-			http.Error(w, "failed to record karma message", http.StatusInternalServerError)
-			return
+			return &eventFailure{status: http.StatusInternalServerError, body: "failed to record karma message", log: "record karma message failed", err: err}
 		}
 	}
 
@@ -240,29 +265,22 @@ func (p *EventsProcessor) HandleEvent(w http.ResponseWriter, r *http.Request, bo
 				SnarkLevel:   snarkLevel,
 			})
 			if err != nil {
-				slog.Error("apply karma failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-				http.Error(w, "failed to apply karma", http.StatusInternalServerError)
-				return
+				return &eventFailure{status: http.StatusInternalServerError, body: "failed to apply karma", log: "apply karma failed", err: err}
 			}
 
 			if result.Message != "" {
 				if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
-					slog.Error("post karma reply failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-					http.Error(w, "failed to post message", http.StatusBadGateway)
-					return
+					return &eventFailure{status: http.StatusBadGateway, body: "failed to post message", log: "post karma reply failed", err: err}
 				}
 			}
 
 		case parser.KarmaSegmentSubteam:
 			if err := p.handleSubteamKarma(ctx, envelope, seg, threadTS, snarkLevel); err != nil {
-				slog.Error("user group karma failed", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-				http.Error(w, err.Error(), http.StatusBadGateway)
-				return
+				return &eventFailure{status: http.StatusBadGateway, body: err.Error(), log: "user group karma failed", err: err}
 			}
 		}
 	}
-
-	ack(w)
+	return nil
 }
 
 func (p *EventsProcessor) resolveChannelContext(ctx context.Context, envelope EventEnvelope) (threadTS string, snarkLevel int) {

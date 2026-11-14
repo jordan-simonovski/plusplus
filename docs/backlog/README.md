@@ -14,13 +14,12 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 13 | [Split `HandleEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M |
 | 15 | [Dead code and duplication sweep](15-dead-code-sweep.md) | Unused exports, duplicated constants | S |
 | 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M |
 
 ### Running items in parallel
 
-Nothing left can run in parallel: 13, 15 and 16 all edit the event handler or its tests,
+Nothing left can run in parallel: 15 and 16 both touch the slack package and its tests,
 so run them in order.
 
 Sizes: S is under about 150 changed lines, M is up to about 400.

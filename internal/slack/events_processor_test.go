@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -436,4 +437,68 @@ func TestEventsProcessorTooLargeGroupStillCreditsIndividuals(t *testing.T) {
 	if len(web.posts) != 2 || web.posts[0].threadTS != "5.1" {
 		t.Fatalf("posts %+v; want the too-large notice in the thread, then U9's reply", web.posts)
 	}
+}
+
+// Pins today's status for a karma failure inside a user-group award: 502 with the error as
+// the body (single-user failures are 500). Item 13's refactor must keep it.
+func TestEventsProcessorGroupKarmaFailureIs502(t *testing.T) {
+	var calls []string
+	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U001": true}}, nil, &fakeUserGroupLister{ids: groupMembers(3)}, &fakeWebClient{})
+	if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++"); got != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502", got)
+	}
+}
+
+func karmaEnvelope(text string) EventEnvelope {
+	return EventEnvelope{
+		Type:           "event_callback",
+		TeamID:         "T1",
+		Authorizations: []SlackAuthorization{{UserID: "UBOT", IsBot: true}},
+		Event:          SlackEvent{Type: "app_mention", User: "U2", Text: "<@UBOT> " + text, Channel: "C1", TS: "5.1", EventTS: "5.1"},
+	}
+}
+
+func TestHandleKarmaMessageAppliesAndReplies(t *testing.T) {
+	var calls []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, web)
+	if err := p.handleKarmaMessage(context.Background(), karmaEnvelope("<@U3> ++")); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(calls, ",") != "U3" || len(web.posts) != 1 || web.posts[0].threadTS != "5.1" {
+		t.Fatalf("calls %v, posts %+v", calls, web.posts)
+	}
+}
+
+func TestHandleKarmaMessageKarmaFailureMapsTo500(t *testing.T) {
+	var calls []string
+	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U3": true}}, nil, nil, &fakeWebClient{})
+	err := p.handleKarmaMessage(context.Background(), karmaEnvelope("<@U3> ++"))
+	var failure *eventFailure
+	if !errors.As(err, &failure) || failure.status != http.StatusInternalServerError || failure.body != "failed to apply karma" {
+		t.Fatalf("err = %v; want an eventFailure with status 500", err)
+	}
+}
+
+func TestHandleEventResponsesForFailingPaths(t *testing.T) {
+	t.Run("record karma message fails", func(t *testing.T) {
+		var calls []string
+		p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).
+			WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5)
+		rec := httptest.NewRecorder()
+		body := []byte(`{"type":"event_callback","team_id":"T1","event":{"type":"app_mention","user":"U2","text":"<@U3> ++","channel":"C1","ts":"5.1","event_ts":"5.1"}}`)
+		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+		addSlackSignatureHeaders(req, "secret", body)
+		serveEvent(p, rec, req)
+		if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "failed to record karma message") || len(calls) != 0 {
+			t.Fatalf("got %d %q, calls %v", rec.Code, rec.Body.String(), calls)
+		}
+	})
+	t.Run("reaction timeout retry is skipped", func(t *testing.T) {
+		var runs []string
+		p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+		if got := sendReaction(t, p, "reaction_added", "U1", "U2", "fire", "X-Slack-Retry-Reason", "http_timeout"); got != http.StatusOK || len(runs) != 0 {
+			t.Fatalf("status %d, karma runs %v; want 200 and nothing applied", got, runs)
+		}
+	})
 }
