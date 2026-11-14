@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -102,6 +103,7 @@ func (p *InteractionsProcessor) processInteraction(w http.ResponseWriter, r *htt
 		level,
 	)
 	if err != nil {
+		slog.Error("update snark level failed", "team", payload.Team.ID, "kind", "interaction", "err", err)
 		http.Error(w, "failed to update settings", http.StatusInternalServerError)
 		return
 	}

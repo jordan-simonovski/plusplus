@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"log/slog"
 )
 
 const (
@@ -82,11 +83,15 @@ func (s *KarmaService) HandleAction(ctx context.Context, action KarmaAction) (Ka
 			sign = -1
 		}
 		// War snark is best-effort flavor: a store error must not fail the karma reply.
-		if line, _ := s.war.Observe(ctx, action.TeamID, action.SnarkLevel, Interaction{
+		line, err := s.war.Observe(ctx, action.TeamID, action.SnarkLevel, Interaction{
 			Actor:  action.ActorUserID,
 			Target: action.TargetUserID,
 			Sign:   sign,
-		}); line != "" {
+		})
+		if err != nil {
+			slog.Warn("karma war store failed", "team", action.TeamID, "err", err)
+		}
+		if line != "" {
 			message += "\n" + line
 		}
 	}
