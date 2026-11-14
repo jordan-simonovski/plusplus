@@ -28,7 +28,7 @@
         <span class="brand__name">plusplus</span>
       </a>
       <div class="nav__links">
-        <a class="nav__link nav__version" data-version href="changelog.html">v1.0.0</a>
+        <a class="nav__link nav__version" data-version href="changelog.html">v1.1.0</a>
         <a class="nav__link" href="changelog.html">Changelog</a>
         <a class="nav__link" href="https://github.com/jordan-simonovski/plusplus" target="_blank" rel="noopener">GitHub</a>
       </div>
@@ -37,6 +37,24 @@
   <main>
     <article class="changelog section">
       <h1 class="section__title">Changelog</h1>
+<h2>1.1.0</h2>
+<h3>Minor Changes</h3>
+<ul>
+<li>307eb05: Reacting to a karma message now gives the karma to the people it mentions, not the person who posted it. React 🔥 to <code>@plusplus @sam ++</code> and Sam gets the 4 karma. The poster&#39;s own reactions on that message don&#39;t count, and reactions to a user group award give nothing.</li>
+<li>28a4499: The one-off tool for moving data from the old Postgres (Supabase) database to DynamoDB has been removed, along with its Postgres dependency. Everyone has long since moved to DynamoDB; if you still need to migrate an old Postgres instance, the README names the last commit that has the tool.</li>
+</ul>
+<h3>Patch Changes</h3>
+<ul>
+<li>6abeba5: The server now refuses to start, with a message saying what to fix, when <code>SLACK_SIGNING_SECRET</code> is missing, when neither <code>SLACK_BOT_TOKEN</code> nor <code>SLACK_CLIENT_ID</code> is set, or when <code>MAX_KARMA_PER_ACTION</code> isn&#39;t a whole number. Before, it started anyway: without the Slack settings it rejected every request or failed every reply, and an unreadable <code>MAX_KARMA_PER_ACTION</code> was silently treated as 5. Self-hosters: a deployment that was misconfigured in one of these ways and still ran will now stop at startup; check the logs for the reason. The unused <code>SLACK_APP_TOKEN</code> setting is no longer read.</li>
+<li>01f05bb: The container image is now built with Go 1.26.11, which includes the latest Go security fixes. Self-hosters pick these up by pulling the new image.</li>
+<li>cafae6d: Karma for a user group (<code>@plusplus @team ++</code>) now works for groups of up to 50 people. For a bigger group PlusPlus replies that it&#39;s too large instead of giving everyone karma one by one, which was slow enough for Slack to give up on and produced replies too long to post.</li>
+<li>b358659: <code>/plusplus-settings help</code> now starts by reminding you to invite the bot to a channel with <code>/invite @plusplus</code>. Self-hosted: the setup guide now explains that plain <code>@someone ++</code> only works in channels the bot has been invited to.</li>
+<li>c2c0968: Karma is no longer given twice when Slack re-sends a message, which it does when a reply takes more than a few seconds (for example, karma for a large user group). Self-hosters: the app now keeps a small record per karma message for 24 hours. To have DynamoDB delete these automatically, turn on TTL for the <code>expires_at</code> attribute on the karma table (see &quot;Expiring event claims&quot; in the self-hosting guide); without it everything still works and the records accumulate.</li>
+<li>44cb06e: Links to pluspluskarma.dev now show an up-to-date preview card when shared in Slack or on social media, including links to the support, changelog, privacy and terms pages.</li>
+<li>3301c29: When something goes wrong (a failed karma update, a Slack reply that didn&#39;t send, a settings change that didn&#39;t save), PlusPlus now logs why, with the workspace it happened in. Self-hosters: logs are now JSON lines (one object per line, with <code>level</code>, <code>msg</code>, <code>team</code>, <code>kind</code> and <code>err</code> fields) instead of plain text, so update any log filters that matched the old wording. Message text is never logged.</li>
+<li>2ce63fc: Stored Slack tokens are now encrypted so they only work for the workspace they belong to. Existing tokens keep working and are upgraded automatically the next time each workspace uses PlusPlus. Self-hosters: once you run this version, don&#39;t downgrade to an earlier one, because earlier versions can&#39;t read upgraded tokens; those workspaces would have to reinstall.</li>
+<li>8474c19: When a workspace removes PlusPlus, its stored Slack token is now deleted. Karma totals and channel settings are kept, so reinstalling brings everything back. Self-hosters using OAuth mode: subscribe your Slack app to the <code>app_uninstalled</code> and <code>tokens_revoked</code> bot events (see &quot;Upgrading to uninstall cleanup&quot; in the self-hosting guide). No new scope or AWS permission is needed.</li>
+</ul>
 <h2>1.0.0</h2>
 <h3>Major Changes</h3>
 <ul>
