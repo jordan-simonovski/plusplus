@@ -2,9 +2,12 @@ name: go
 
 # Format, vet, lint, race tests and a vulnerability scan. Runs on pull requests,
 # and on main through docker.yml, which calls this workflow before publishing.
+# workflow_dispatch lets release.yml run it on the release PR, which the Actions token
+# can't trigger any other way.
 on:
   pull_request:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read

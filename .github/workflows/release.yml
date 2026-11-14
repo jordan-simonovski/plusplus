@@ -7,8 +7,8 @@ name: release
 # to npm (the package is private), so there is no publish step.
 #
 # Needs "Allow GitHub Actions to create and approve pull requests" (Settings > Actions >
-# General). PRs opened with the Actions token don't trigger other workflows, so the go
-# checks don't run on the release PR; it only changes versions and changelogs.
+# General). PRs opened with the Actions token don't trigger other workflows, so the last
+# step starts the go checks on the release PR with a workflow_dispatch.
 on:
   push:
     branches: [main]
@@ -20,6 +20,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  actions: write # to start the go checks on the release PR
 
 jobs:
   release-pr:
@@ -40,7 +41,16 @@ jobs:
       # Action v2 needs Changesets CLI v3 (and the v1 action needs CLI v2), so the two
       # move together. Pinned to a commit: this step holds a token that can write to the repo.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        id: changesets
         with:
           version-script: npm run release
           commit-message: "chore: release"
           pr-title: "chore: release"
+
+      # Pushes made with the Actions token start no workflows, so the release PR would never
+      # get the required go checks. A workflow_dispatch is the exception: start them here.
+      - name: Run the go checks on the release PR
+        if: steps.changesets.outputs.pr-number != ''
+        run: gh workflow run go.yml --ref changeset-release/main
+        env:
+          GH_TOKEN: ${{ github.token }}
