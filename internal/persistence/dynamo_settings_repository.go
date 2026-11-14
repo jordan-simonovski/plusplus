@@ -16,12 +16,7 @@ import (
 	"plusplus/internal/domain"
 )
 
-const (
-	defaultReplyMode  = "thread"
-	defaultSnarkLevel = 5
-	minSnarkLevel     = 1
-	maxSnarkLevel     = 10
-)
+const defaultReplyMode = "thread"
 
 type DynamoSettingsRepository struct {
 	client *dynamodb.Client
@@ -57,7 +52,7 @@ func (r *DynamoSettingsRepository) GetChannelSettings(
 		return "", 0, fmt.Errorf("get channel settings: %w", err)
 	}
 	if out.Item == nil {
-		return defaultReplyMode, defaultSnarkLevel, nil
+		return defaultReplyMode, domain.DefaultSnarkLevel, nil
 	}
 
 	var item settingsItem
@@ -70,19 +65,10 @@ func (r *DynamoSettingsRepository) GetChannelSettings(
 		mode = defaultReplyMode
 	}
 	level := item.SnarkLevel
-	if level < minSnarkLevel || level > maxSnarkLevel {
-		level = defaultSnarkLevel
+	if level < domain.MinSnarkLevel || level > domain.MaxSnarkLevel {
+		level = domain.DefaultSnarkLevel
 	}
 	return mode, level, nil
-}
-
-func (r *DynamoSettingsRepository) GetReplyMode(
-	ctx context.Context,
-	teamID string,
-	channelID string,
-) (string, error) {
-	mode, _, err := r.GetChannelSettings(ctx, teamID, channelID)
-	return mode, err
 }
 
 // SetReplyMode updates reply_mode and seeds snark_level to its default only when
@@ -108,7 +94,7 @@ func (r *DynamoSettingsRepository) SetReplyMode(
 			":mode":     &types.AttributeValueMemberS{Value: replyMode},
 			":by":       &types.AttributeValueMemberS{Value: actorUserID},
 			":at":       &types.AttributeValueMemberS{Value: time.Now().UTC().Format(time.RFC3339)},
-			":defSnark": &types.AttributeValueMemberN{Value: strconv.Itoa(defaultSnarkLevel)},
+			":defSnark": &types.AttributeValueMemberN{Value: strconv.Itoa(domain.DefaultSnarkLevel)},
 		},
 	})
 	if err != nil {
