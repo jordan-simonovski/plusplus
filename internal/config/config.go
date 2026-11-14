@@ -13,7 +13,6 @@ type Config struct {
 
 	SlackSigningSecret string
 	SlackBotToken      string
-	SlackAppToken      string
 
 	SlackClientID     string
 	SlackClientSecret string
@@ -43,7 +42,6 @@ func Load() (Config, error) {
 		Port:               getenvDefault("PORT", "8080"),
 		SlackSigningSecret: os.Getenv("SLACK_SIGNING_SECRET"),
 		SlackBotToken:      os.Getenv("SLACK_BOT_TOKEN"),
-		SlackAppToken:      os.Getenv("SLACK_APP_TOKEN"),
 		SlackClientID:      os.Getenv("SLACK_CLIENT_ID"),
 		SlackClientSecret:  os.Getenv("SLACK_CLIENT_SECRET"),
 		PublicBaseURL:      os.Getenv("PUBLIC_BASE_URL"),
@@ -53,8 +51,13 @@ func Load() (Config, error) {
 		KarmaTable:         getenvDefault("DYNAMODB_KARMA_TABLE", "plusplus_karma"),
 		SettingsTable:      getenvDefault("DYNAMODB_SETTINGS_TABLE", "plusplus_channel_settings"),
 		WorkspacesTable:    getenvDefault("DYNAMODB_WORKSPACES_TABLE", "plusplus_workspaces"),
-		MaxKarmaPerAction:  getenvIntDefault("MAX_KARMA_PER_ACTION", 5),
 	}
+
+	maxKarma, err := getenvIntDefault("MAX_KARMA_PER_ACTION", 5)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.MaxKarmaPerAction = maxKarma
 
 	if err := validatePort(cfg.Port); err != nil {
 		return Config{}, err
@@ -87,6 +90,18 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
+// ValidateServer checks the settings only the HTTP server needs. Load stays free of them
+// because cmd/migrate and the integration tests also call it and have no Slack settings.
+func (c Config) ValidateServer() error {
+	if c.SlackSigningSecret == "" {
+		return fmt.Errorf("SLACK_SIGNING_SECRET is required: without it every Slack request is rejected")
+	}
+	if c.SlackClientID == "" && c.SlackBotToken == "" {
+		return fmt.Errorf("set SLACK_BOT_TOKEN (single workspace) or SLACK_CLIENT_ID with SLACK_CLIENT_SECRET, PUBLIC_BASE_URL and TOKEN_ENCRYPTION_KEY (OAuth install): without either the bot cannot reply")
+	}
+	return nil
+}
+
 func validatePort(port string) error {
 	value, err := strconv.Atoi(port)
 	if err != nil {
@@ -108,16 +123,16 @@ func getenvDefault(key, fallback string) string {
 	return fallback
 }
 
-func getenvIntDefault(key string, fallback int) int {
+func getenvIntDefault(key string, fallback int) (int, error) {
 	value := os.Getenv(key)
 	if value == "" {
-		return fallback
+		return fallback, nil
 	}
 
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s must be a whole number, got %q", key, value)
 	}
 
-	return parsed
+	return parsed, nil
 }

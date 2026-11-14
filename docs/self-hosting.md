@@ -50,7 +50,7 @@ All configuration is via environment variables. Defaults come from
 | Variable               | Required | Default                      | Notes                                                              |
 | ---------------------- | -------- | ---------------------------- | ------------------------------------------------------------------ |
 | `PORT`                 | no       | `8080`                       | HTTP listen port (1–65535).                                        |
-| `MAX_KARMA_PER_ACTION` | no       | `5`                          | Max karma delta per message. Must be ≥ 1.                          |
+| `MAX_KARMA_PER_ACTION` | no       | `5`                          | Max karma delta per message. A whole number, at least 1.           |
 | `SLACK_SIGNING_SECRET` | **yes**  | —                            | From the Slack app **Basic Information** page. Verifies requests.  |
 
 ### DynamoDB / AWS

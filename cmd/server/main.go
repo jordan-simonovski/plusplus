@@ -28,6 +28,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
+	if err := cfg.ValidateServer(); err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	dynamoClient, err := persistence.NewDynamoClient(context.Background(), cfg)
 	if err != nil {
