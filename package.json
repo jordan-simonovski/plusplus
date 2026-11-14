@@ -11,8 +11,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
+    "@changesets/cli": "^3.0.3",
     "husky": "^9.1.7",
-    "marked": "^18.0.4"
+    "marked": "^18.2.0"
   }
 }
