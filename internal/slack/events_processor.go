@@ -153,13 +153,23 @@ func (p *EventsProcessor) HandleEvent(w http.ResponseWriter, r *http.Request, bo
 		err = p.handleKarmaMessage(ctx, envelope)
 	}
 
-	var failure *eventFailure
-	if errors.As(err, &failure) {
-		slog.Error(failure.log, "team", envelope.TeamID, "kind", envelope.Event.Type, "err", failure.err)
-		http.Error(w, failure.body, failure.status)
+	respond(w, envelope, err)
+}
+
+// respond acknowledges a handled event, or logs the failure once and answers with its
+// status. An error a handler didn't classify still fails closed: a logged 500, so Slack
+// retries.
+func respond(w http.ResponseWriter, envelope EventEnvelope, err error) {
+	if err == nil {
+		ack(w)
 		return
 	}
-	ack(w)
+	var failure *eventFailure
+	if !errors.As(err, &failure) {
+		failure = &eventFailure{status: http.StatusInternalServerError, body: "failed to handle event", log: "event handling failed", err: err}
+	}
+	slog.Error(failure.log, "team", envelope.TeamID, "kind", envelope.Event.Type, "err", failure.err)
+	http.Error(w, failure.body, failure.status)
 }
 
 // eventFailure is a handler error together with the response Slack gets and the log line

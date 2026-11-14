@@ -479,3 +479,26 @@ func TestHandleKarmaMessageKarmaFailureMapsTo500(t *testing.T) {
 		t.Fatalf("err = %v; want an eventFailure with status 500", err)
 	}
 }
+
+func TestHandleEventResponsesForFailingPaths(t *testing.T) {
+	t.Run("record karma message fails", func(t *testing.T) {
+		var calls []string
+		p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, &fakeWebClient{}).
+			WithReactions(defaultTiers{}, failingStore{memReactionState: memReactionState{}, failRecord: true}, 5)
+		rec := httptest.NewRecorder()
+		body := []byte(`{"type":"event_callback","team_id":"T1","event":{"type":"app_mention","user":"U2","text":"<@U3> ++","channel":"C1","ts":"5.1","event_ts":"5.1"}}`)
+		req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(body))
+		addSlackSignatureHeaders(req, "secret", body)
+		serveEvent(p, rec, req)
+		if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "failed to record karma message") || len(calls) != 0 {
+			t.Fatalf("got %d %q, calls %v", rec.Code, rec.Body.String(), calls)
+		}
+	})
+	t.Run("reaction timeout retry is skipped", func(t *testing.T) {
+		var runs []string
+		p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+		if got := sendReaction(t, p, "reaction_added", "U1", "U2", "fire", "X-Slack-Retry-Reason", "http_timeout"); got != http.StatusOK || len(runs) != 0 {
+			t.Fatalf("status %d, karma runs %v; want 200 and nothing applied", got, runs)
+		}
+	})
+}
