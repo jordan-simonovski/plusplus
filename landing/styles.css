@@ -475,6 +475,9 @@ code {
   font-weight: 800;
 }
 .cta__subtitle { color: var(--muted); margin: 0 0 28px; }
+.cta__kofi { margin: 24px 0 0; font-size: 0.95rem; }
+.cta__kofi a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; display: inline-block; padding: 6px 0; }
+.cta__kofi a:hover { color: var(--accent); }
 
 /* ---------- Legal / prose ---------- */
 .legal {
