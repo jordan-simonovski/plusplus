@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest something PlusPlus should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should PlusPlus do?
+    validations:
+      required: true
+  - type: dropdown
+    id: permission
+    attributes:
+      label: Would it need a new Slack permission?
+      description: For example reading message history or a new event. New permissions need Slack's review for the hosted app.
+      options:
+        - "No"
+        - "Yes"
+        - Not sure

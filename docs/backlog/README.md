@@ -17,7 +17,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 | 07 | [Cap user-group karma](07-group-fanout-cap.md) | One message can trigger unbounded writes and API calls | S |
 | 08 | [OAuth handler cleanup](08-oauth-cleanup.md) | Dead header-trusting code path; errors echoed to browsers | S |
 | 09 | [Bind token ciphertext to its workspace](09-token-aad.md) | Stored tokens can be swapped between workspaces undetected | S |
-| 10 | [Contributor and issue scaffolding](10-community-health.md) | No contributing guide, security policy or issue forms | M |
 | 11 | [Dependabot and pinned actions/images](11-supply-chain-pins.md) | Mutable tags in CI and the Dockerfile | S |
 | 12 | [One signature gate for Slack endpoints](12-transport-middleware.md) | Verification is copy-pasted three times | M |
 | 13 | [Split `ProcessEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M |
@@ -36,8 +35,6 @@ landed:
 - **09** touches only `internal/crypto` and the workspace repository.
 - **19** touches only `terraform/dynamodb.tf`. Not alongside 03, which edits the same file.
 - **11** touches only CI and image configuration.
-- **10** adds new files and reorders `README.md`. Not alongside 18, which also
-  edits `README.md`.
 
 Everything else shares `internal/slack/events_processor.go`, `cmd/server/main.go` or the
 handler tests, so run those strictly in order.
