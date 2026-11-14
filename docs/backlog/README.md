@@ -17,7 +17,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 | 13 | [Split `HandleEvent`](13-split-process-event.md) | One 130-line function mixes transport and karma logic | M |
 | 15 | [Dead code and duplication sweep](15-dead-code-sweep.md) | Unused exports, duplicated constants | S |
 | 16 | [Fill test gaps](16-test-gaps.md) | Interactions handler has no tests; parser has no fuzzing | M |
-| 18 | [Retire `cmd/migrate`](18-retire-migrate.md) | Owner confirmation required. Drops the Postgres dependency | S |
 
 ### Running items in parallel
 

@@ -91,7 +91,7 @@ func Load() (Config, error) {
 }
 
 // ValidateServer checks the settings only the HTTP server needs. Load stays free of them
-// because cmd/migrate and the integration tests also call it and have no Slack settings.
+// because the integration tests also call it and have no Slack settings.
 func (c Config) ValidateServer() error {
 	if c.SlackSigningSecret == "" {
 		return fmt.Errorf("SLACK_SIGNING_SECRET is required: without it every Slack request is rejected")
