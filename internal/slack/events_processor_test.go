@@ -421,3 +421,19 @@ func TestEventsProcessorGroupKarmaSizeLimit(t *testing.T) {
 		})
 	}
 }
+
+// A too-large group is skipped, not the whole message: individual users still get karma.
+func TestEventsProcessorTooLargeGroupStillCreditsIndividuals(t *testing.T) {
+	var calls []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor("secret", countingKarma{calls: &calls}, nil, &fakeUserGroupLister{ids: groupMembers(51)}, web)
+	if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++ <@U9> ++"); got != http.StatusOK {
+		t.Fatalf("status %d", got)
+	}
+	if strings.Join(calls, ",") != "U9" {
+		t.Fatalf("karma calls %v, want only U9", calls)
+	}
+	if len(web.posts) != 2 || web.posts[0].threadTS != "5.1" {
+		t.Fatalf("posts %+v; want the too-large notice in the thread, then U9's reply", web.posts)
+	}
+}
