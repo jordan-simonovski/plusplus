@@ -102,7 +102,7 @@ func TestEvaluateKarmaAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := EvaluateKarmaAction(tt.input)
+			got := EvaluateKarmaActionWithLimits(tt.input, minSymbolCount, maxSymbolCount)
 			if got != tt.expected {
 				t.Fatalf("unexpected outcome: got %+v want %+v", got, tt.expected)
 			}

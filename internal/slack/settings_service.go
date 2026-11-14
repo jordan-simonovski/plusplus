@@ -37,11 +37,6 @@ func (s *ChannelSettingsService) GetChannelSettings(ctx context.Context, teamID 
 	}
 }
 
-func (s *ChannelSettingsService) GetReplyMode(ctx context.Context, teamID string, channelID string) (ReplyMode, error) {
-	mode, _, err := s.GetChannelSettings(ctx, teamID, channelID)
-	return mode, err
-}
-
 func (s *ChannelSettingsService) GetSnarkLevel(ctx context.Context, teamID string, channelID string) (int, error) {
 	_, level, err := s.GetChannelSettings(ctx, teamID, channelID)
 	return level, err

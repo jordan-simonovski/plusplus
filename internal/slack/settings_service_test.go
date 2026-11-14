@@ -9,7 +9,7 @@ func TestChannelSettingsServiceDefaultsUnknownModeToThread(t *testing.T) {
 	store := &fakeSettingsStore{mode: "unknown"}
 	service := NewChannelSettingsService(store)
 
-	mode, err := service.GetReplyMode(context.Background(), "T1", "C1")
+	mode, _, err := service.GetChannelSettings(context.Background(), "T1", "C1")
 	if err != nil {
 		t.Fatalf("get reply mode failed: %v", err)
 	}

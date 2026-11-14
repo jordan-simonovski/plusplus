@@ -55,10 +55,6 @@ func expandMinusRunToHyphens(s string) string {
 	return b.String()
 }
 
-func EvaluateKarmaAction(input EvaluateInput) KarmaRuleOutcome {
-	return EvaluateKarmaActionWithLimits(input, minSymbolCount, maxSymbolCount)
-}
-
 // SymbolRunSign reports the direction of a symbol run: +1 award, -1 remove, 0
 // when the run is not a valid karma token. Used to classify group-level actions
 // where the per-member delta is computed elsewhere.

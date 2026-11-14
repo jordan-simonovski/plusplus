@@ -2,7 +2,6 @@ package domain
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 )
 
@@ -151,5 +150,3 @@ func (s *KarmaService) handleRejection(ctx context.Context, reason RejectionReas
 		return KarmaResult{ShouldPersist: false, Message: ""}
 	}
 }
-
-var ErrUnsupportedReason = errors.New("unsupported rejection reason")

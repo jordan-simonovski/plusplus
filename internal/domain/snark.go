@@ -2,8 +2,7 @@ package domain
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
+	"math/rand/v2"
 )
 
 const (
@@ -142,13 +141,12 @@ func snarkPool(reason RejectionReason, level int) []string {
 }
 
 func RandomSnarkPicker() SnarkPicker {
-	seed := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return func(reason RejectionReason, snarkLevel int) string {
 		list := snarkPool(reason, snarkLevel)
 		if len(list) == 0 {
 			return "Invalid karma command."
 		}
-		return list[seed.Intn(len(list))]
+		return list[rand.IntN(len(list))]
 	}
 }
 
@@ -267,15 +265,12 @@ func warSnarkFlat(vibe warVibe) []string {
 	}
 }
 
-// defaultWarSnark seeds a fresh source per call (matching RandomCappedAwardSnark)
-// to avoid sharing a *rand.Rand across concurrent request goroutines.
 func defaultWarSnark(vibe warVibe, level int) string {
 	pool := tierSlice(warSnarkFlat(vibe), NormalizeSnarkLevel(level))
 	if len(pool) == 0 {
 		return ""
 	}
-	seed := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return pool[seed.Intn(len(pool))]
+	return pool[rand.IntN(len(pool))]
 }
 
 func RandomCappedAwardSnark(maxKarmaPerAction int, snarkLevel int) string {
@@ -286,7 +281,6 @@ func RandomCappedAwardSnark(maxKarmaPerAction int, snarkLevel int) string {
 		return "Buzzkill mode enabled."
 	}
 
-	seed := rand.New(rand.NewSource(time.Now().UnixNano()))
-	template := templates[seed.Intn(len(templates))]
+	template := templates[rand.IntN(len(templates))]
 	return fmt.Sprintf(template, maxKarmaPerAction)
 }

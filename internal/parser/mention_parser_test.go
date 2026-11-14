@@ -2,7 +2,7 @@ package parser
 
 import "testing"
 
-func TestParseMentionAction(t *testing.T) {
+func TestParseUserMentions(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      string
@@ -41,14 +41,14 @@ func TestParseMentionAction(t *testing.T) {
 	multiTests := []struct {
 		name    string
 		input   string
-		want    []MentionAction
+		want    []mention
 		wantLen int
 	}{
 		{
 			name:    "two recipients in one message",
 			input:   "Bravo <@U1> ++++++ , from <@U2> +++++",
 			wantLen: 2,
-			want: []MentionAction{
+			want: []mention{
 				{TargetUserID: "U1", SymbolRun: "++++++"},
 				{TargetUserID: "U2", SymbolRun: "+++++"},
 			},
@@ -57,7 +57,7 @@ func TestParseMentionAction(t *testing.T) {
 			name:    "four recipients mixed plus and minus",
 			input:   "<@U1> +++ <@U2> +++++ <@U3> ++++ <@U4> ----",
 			wantLen: 4,
-			want: []MentionAction{
+			want: []mention{
 				{TargetUserID: "U1", SymbolRun: "+++"},
 				{TargetUserID: "U2", SymbolRun: "+++++"},
 				{TargetUserID: "U3", SymbolRun: "++++"},
@@ -68,7 +68,7 @@ func TestParseMentionAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := ParseMentionAction(tt.input)
+			got, ok := firstUserMention(tt.input)
 			if ok != tt.ok {
 				t.Fatalf("unexpected parse status: got %v want %v", ok, tt.ok)
 			}
@@ -83,7 +83,7 @@ func TestParseMentionAction(t *testing.T) {
 
 	for _, tt := range multiTests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ParseMentionActions(tt.input)
+			got := userMentions(tt.input)
 			if len(got) != tt.wantLen {
 				t.Fatalf("unexpected length: got %d want %d", len(got), tt.wantLen)
 			}
@@ -137,4 +137,28 @@ func TestDedupeKarmaSegments(t *testing.T) {
 	if len(got) != 1 || got[0].SymbolRun != "++" {
 		t.Fatalf("want first segment only, got %+v", got)
 	}
+}
+
+// mention is one user karma segment, for comparing parse results in these tests.
+type mention struct {
+	TargetUserID string
+	SymbolRun    string
+}
+
+func userMentions(text string) []mention {
+	var out []mention
+	for _, s := range ParseKarmaSegments(text) {
+		if s.Kind == KarmaSegmentUser {
+			out = append(out, mention{TargetUserID: s.UserID, SymbolRun: s.SymbolRun})
+		}
+	}
+	return out
+}
+
+func firstUserMention(text string) (mention, bool) {
+	all := userMentions(text)
+	if len(all) == 0 {
+		return mention{}, false
+	}
+	return all[0], true
 }
