@@ -1,5 +1,6 @@
 # Kept quiet on purpose: each ecosystem gets at most one version-update PR a month,
-# bundling every update (majors too; CI catches breakage), and security fixes are
+# bundling every update (majors too; the go workflow's tests and image build catch
+# breakage), and security fixes are
 # bundled per ecosystem as they come in. That's about four routine PRs a month.
 # Docker covers the Dockerfile only: the DynamoDB Local digest in docker-compose.yml and
 # the go workflow's integration job is updated by hand, keeping the two identical.
