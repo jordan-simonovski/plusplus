@@ -2,16 +2,22 @@ SHELL := /bin/sh
 
 APP_ENTRY := ./cmd/server
 
-.PHONY: fmt lint test test-integration run build up down logs release
+.PHONY: fmt fmt-check lint test check test-integration run build up down logs release
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
 
+fmt-check:
+	@out="$$(gofmt -l .)"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+
 lint:
 	go vet ./...
+	golangci-lint run ./...
 
 test:
-	go test ./...
+	go test -race ./...
+
+check: fmt-check lint test
 
 test-integration:
 	DYNAMODB_ENDPOINT=http://localhost:8000 AWS_REGION=ap-southeast-2 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local go test -tags=integration ./internal/persistence -v

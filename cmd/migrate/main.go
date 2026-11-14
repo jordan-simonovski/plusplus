@@ -78,7 +78,7 @@ func migrateFromLive(ctx context.Context, databaseURL string, client *dynamodb.C
 	if err != nil {
 		log.Fatalf("open postgres: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	if err := db.PingContext(ctx); err != nil {
 		log.Fatalf("ping postgres: %v", err)
 	}
@@ -94,7 +94,7 @@ func migrateKarma(ctx context.Context, db *sql.DB, client *dynamodb.Client, tabl
 	if err != nil {
 		log.Fatalf("query karma_totals: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	count := 0
 	for rows.Next() {
@@ -124,7 +124,7 @@ func migrateSettings(ctx context.Context, db *sql.DB, client *dynamodb.Client, t
 	if err != nil {
 		log.Fatalf("query channel_settings: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	count := 0
 	for rows.Next() {
@@ -157,7 +157,7 @@ func migrateWorkspaces(ctx context.Context, db *sql.DB, client *dynamodb.Client,
 		log.Printf("skip workspaces (query failed: %v)", err)
 		return 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	count := 0
 	for rows.Next() {

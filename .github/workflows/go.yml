@@ -1,0 +1,31 @@
+name: go
+
+# Format, vet, lint, race tests and a vulnerability scan. Runs on pull requests,
+# and on main through docker.yml, which calls this workflow before publishing.
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # install-only puts golangci-lint on PATH so `make check` is the one place it runs.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.9.0
+          install-only: true
+
+      - run: make check
+
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

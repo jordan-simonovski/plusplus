@@ -1,7 +1,7 @@
 # Builder runs natively on the build host (BUILDPLATFORM) and cross-compiles to
 # the requested target. CGO is disabled, so this is a pure Go cross-compile with
 # no emulation — fast even when building arm64 on an amd64 runner.
-FROM --platform=$BUILDPLATFORM golang:1.26.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.11-alpine AS builder
 
 WORKDIR /app
 

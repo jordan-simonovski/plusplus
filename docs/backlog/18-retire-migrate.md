@@ -12,9 +12,9 @@ and ask.
 
 - It is the only user of `github.com/jackc/pgx/v5` and `database/sql`. Removing it drops
   that module and its indirect dependencies from `go.mod`, which leaves the AWS SDK as the
-  only direct dependency. The open Dependabot PR #1 (a pgx bump) then has nothing to
+  only direct dependency. Dependabot pgx bumps (such as PR #1) then have nothing to
   update and can be closed.
-- It carries 428 lines and five of the ten lint findings on `main`, at 18% coverage.
+- It carries 428 lines at 18% coverage.
 - It calls `config.Load`, which constrains what the server can validate at startup (see
   item 05).
 
