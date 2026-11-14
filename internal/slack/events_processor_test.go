@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -445,5 +446,36 @@ func TestEventsProcessorGroupKarmaFailureIs502(t *testing.T) {
 	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U001": true}}, nil, &fakeUserGroupLister{ids: groupMembers(3)}, &fakeWebClient{})
 	if got := deliver(context.Background(), p, "", "<!subteam^S1|@team> ++"); got != http.StatusBadGateway {
 		t.Fatalf("status %d, want 502", got)
+	}
+}
+
+func karmaEnvelope(text string) EventEnvelope {
+	return EventEnvelope{
+		Type:           "event_callback",
+		TeamID:         "T1",
+		Authorizations: []SlackAuthorization{{UserID: "UBOT", IsBot: true}},
+		Event:          SlackEvent{Type: "app_mention", User: "U2", Text: "<@UBOT> " + text, Channel: "C1", TS: "5.1", EventTS: "5.1"},
+	}
+}
+
+func TestHandleKarmaMessageAppliesAndReplies(t *testing.T) {
+	var calls []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor(countingKarma{calls: &calls}, nil, nil, web)
+	if err := p.handleKarmaMessage(context.Background(), karmaEnvelope("<@U3> ++")); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(calls, ",") != "U3" || len(web.posts) != 1 || web.posts[0].threadTS != "5.1" {
+		t.Fatalf("calls %v, posts %+v", calls, web.posts)
+	}
+}
+
+func TestHandleKarmaMessageKarmaFailureMapsTo500(t *testing.T) {
+	var calls []string
+	p := NewEventsProcessor(countingKarma{calls: &calls, fail: map[string]bool{"U3": true}}, nil, nil, &fakeWebClient{})
+	err := p.handleKarmaMessage(context.Background(), karmaEnvelope("<@U3> ++"))
+	var failure *eventFailure
+	if !errors.As(err, &failure) || failure.status != http.StatusInternalServerError || failure.body != "failed to apply karma" {
+		t.Fatalf("err = %v; want an eventFailure with status 500", err)
 	}
 }
