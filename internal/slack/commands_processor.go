@@ -98,6 +98,7 @@ func (p *CommandsProcessor) ProcessCommand(w http.ResponseWriter, r *http.Reques
 // usageText answers "help" or unknown input on any command (Slack Marketplace requirement).
 var usageText = fmt.Sprintf(
 	"*PlusPlus help*\n"+
+		"• First, invite the bot to the channel: `/invite @plusplus`\n"+
 		"• Give karma: mention the bot and a teammate, e.g. `@plusplus @sam ++` (`--` docks karma)\n"+
 		"• `/plusplus-leaderboard` — all-time karma leaderboard\n"+
 		"• `/plusplus-settings` — interactive channel settings\n"+
