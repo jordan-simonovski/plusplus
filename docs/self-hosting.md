@@ -299,6 +299,18 @@ list no longer includes the history scopes. When you upgrade an existing instanc
 Plain `@someone ++` keeps working for existing installs that still have the
 history scopes and `message.*` events.
 
+## Upgrading to uninstall cleanup
+
+When a workspace removes the app, PlusPlus now deletes that workspace's stored bot
+token (karma and settings are kept, so reinstalling brings them back). For this it
+needs two more bot events; neither needs a new scope or IAM permission.
+
+1. In your Slack app, subscribe to the `app_uninstalled` and `tokens_revoked` bot
+   events (or re-apply
+   [`slack-app-manifest.self-hosted.yaml`](../slack-app-manifest.self-hosted.yaml)).
+2. That's all. In single-workspace mode (`SLACK_BOT_TOKEN`, no OAuth) there is no
+   stored token, so the events are acknowledged and ignored.
+
 ---
 
 ## 6. Verify

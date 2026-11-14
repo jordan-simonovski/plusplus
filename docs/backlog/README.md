@@ -14,7 +14,6 @@ always safe. An item has landed when its file no longer exists in `docs/backlog/
 
 | # | Item | Why it matters | Size |
 | --- | --- | --- | --- |
-| 06 | [Remove the token on uninstall](06-uninstall-token-cleanup.md) | Tokens for uninstalled workspaces are kept forever | M |
 | 07 | [Cap user-group karma](07-group-fanout-cap.md) | One message can trigger unbounded writes and API calls | S |
 | 08 | [OAuth handler cleanup](08-oauth-cleanup.md) | Dead header-trusting code path; errors echoed to browsers | S |
 | 09 | [Bind token ciphertext to its workspace](09-token-aad.md) | Stored tokens can be swapped between workspaces undetected | S |
@@ -34,11 +33,11 @@ Only these are safe to have open at the same time as other items, once 01 and 02
 landed:
 
 - **14** stays inside `client.go` and `team_client.go`.
-- **09** touches only `internal/crypto` and the workspace repository. Not alongside 06.
+- **09** touches only `internal/crypto` and the workspace repository.
 - **19** touches only `terraform/dynamodb.tf`. Not alongside 03, which edits the same file.
 - **11** touches only CI and image configuration.
-- **10** adds new files and reorders `README.md`. Not alongside 06 or 18, which also
-  edit `README.md` or `docs/self-hosting.md`.
+- **10** adds new files and reorders `README.md`. Not alongside 18, which also
+  edits `README.md`.
 
 Everything else shares `internal/slack/events_processor.go`, `cmd/server/main.go` or the
 handler tests, so run those strictly in order.

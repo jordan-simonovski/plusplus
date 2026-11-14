@@ -110,6 +110,8 @@ settings:
       - app_mention
       - reaction_added
       - reaction_removed
+      - app_uninstalled
+      - tokens_revoked
   interactivity:
     is_enabled: true
     request_url: https://api.pluspluskarma.dev/slack/interactions

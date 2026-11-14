@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -73,4 +74,28 @@ func (r *DynamoWorkspaceRepository) GetBotToken(ctx context.Context, teamID stri
 		return "", fmt.Errorf("decrypt token: %w", err)
 	}
 	return string(pt), nil
+}
+
+// RemoveInstallation forgets a workspace's bot token when the app is uninstalled. The row
+// stays (installed_at is kept) but has no token, so GetBotToken reports ErrNotFound. An
+// unknown workspace is not an error and gets no row. Uses UpdateItem rather than
+// DeleteItem, which the documented runtime IAM policies do not grant.
+func (r *DynamoWorkspaceRepository) RemoveInstallation(ctx context.Context, teamID string) error {
+	_, err := r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(r.table),
+		Key: map[string]types.AttributeValue{
+			attrTeamID: &types.AttributeValueMemberS{Value: teamID},
+		},
+		UpdateExpression:         aws.String("REMOVE #token"),
+		ConditionExpression:      aws.String("attribute_exists(#team)"),
+		ExpressionAttributeNames: map[string]string{"#token": attrBotToken, "#team": attrTeamID},
+	})
+	var unknown *types.ConditionalCheckFailedException
+	if errors.As(err, &unknown) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("remove slack installation: %w", err)
+	}
+	return nil
 }

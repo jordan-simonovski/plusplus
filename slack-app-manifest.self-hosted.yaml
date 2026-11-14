@@ -45,6 +45,8 @@ settings:
       - message.groups
       - reaction_added
       - reaction_removed
+      - app_uninstalled
+      - tokens_revoked
   interactivity:
     is_enabled: true
     request_url: https://<your-host>/slack/interactions

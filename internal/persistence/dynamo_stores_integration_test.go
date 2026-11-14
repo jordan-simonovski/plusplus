@@ -334,3 +334,41 @@ func TestDynamoEnsureTablesToleratesTTLDeniedIntegration(t *testing.T) {
 		t.Fatalf("TTL enabled although UpdateTimeToLive was denied: %+v", d)
 	}
 }
+
+func TestDynamoWorkspaceRemoveInstallationIntegration(t *testing.T) {
+	ctx, client, cfg := integrationSetup(t)
+	repo := NewDynamoWorkspaceRepository(client, cfg.WorkspacesTable, testEncryptor(t, 1))
+	team := uniqueTeam("T-uninstall-it")
+
+	if err := repo.UpsertInstallation(ctx, team, "xoxb-gone"); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 2 { // removing twice is harmless
+		if err := repo.RemoveInstallation(ctx, team); err != nil {
+			t.Fatalf("remove %d: %v", i+1, err)
+		}
+	}
+	if got, err := repo.GetBotToken(ctx, team); !errors.Is(err, domain.ErrNotFound) || got != "" {
+		t.Fatalf("after removal: token %q, err %v; want ErrNotFound", got, err)
+	}
+
+	// Reinstalling works as before.
+	if err := repo.UpsertInstallation(ctx, team, "xoxb-back"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repo.GetBotToken(ctx, team); err != nil || got != "xoxb-back" {
+		t.Fatalf("after reinstall: %q, %v", got, err)
+	}
+
+	never := uniqueTeam("T-never-installed")
+	if err := repo.RemoveInstallation(ctx, never); err != nil {
+		t.Fatalf("removing an unknown workspace: %v", err)
+	}
+	row, err := client.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(cfg.WorkspacesTable),
+		Key:       map[string]types.AttributeValue{attrTeamID: &types.AttributeValueMemberS{Value: never}},
+	})
+	if err != nil || row.Item != nil {
+		t.Fatalf("removing an unknown workspace created %v (err %v)", row.Item, err)
+	}
+}

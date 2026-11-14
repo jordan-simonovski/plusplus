@@ -38,6 +38,14 @@ type SlackEvent struct {
 	Reaction string       `json:"reaction,omitempty"`
 	ItemUser string       `json:"item_user,omitempty"`
 	Item     ReactionItem `json:"item,omitempty"`
+
+	// tokens_revoked
+	Tokens RevokedTokens `json:"tokens,omitempty"`
+}
+
+// RevokedTokens lists the user IDs whose tokens were revoked, by token type.
+type RevokedTokens struct {
+	Bot []string `json:"bot"`
 }
 
 type ReactionItem struct {
