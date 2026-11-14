@@ -5,8 +5,11 @@
 resource "aws_dynamodb_table" "karma" {
   name         = var.karma_table_name
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "team_id"
-  range_key    = "user_id"
+
+  # Refuse deletion in AWS itself, whatever a plan says.
+  deletion_protection_enabled = true
+  hash_key                    = "team_id"
+  range_key                   = "user_id"
 
   attribute {
     name = "team_id"
@@ -37,13 +40,21 @@ resource "aws_dynamodb_table" "karma" {
   point_in_time_recovery {
     enabled = var.point_in_time_recovery
   }
+
+  # Terraform refuses to plan destroying (or replacing) the hosted app's data.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_dynamodb_table" "channel_settings" {
   name         = var.settings_table_name
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "team_id"
-  range_key    = "channel_id"
+
+  # Refuse deletion in AWS itself, whatever a plan says.
+  deletion_protection_enabled = true
+  hash_key                    = "team_id"
+  range_key                   = "channel_id"
 
   attribute {
     name = "team_id"
@@ -57,12 +68,20 @@ resource "aws_dynamodb_table" "channel_settings" {
   point_in_time_recovery {
     enabled = var.point_in_time_recovery
   }
+
+  # Terraform refuses to plan destroying (or replacing) the hosted app's data.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_dynamodb_table" "workspaces" {
   name         = var.workspaces_table_name
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "team_id"
+
+  # Refuse deletion in AWS itself, whatever a plan says.
+  deletion_protection_enabled = true
+  hash_key                    = "team_id"
 
   attribute {
     name = "team_id"
@@ -71,6 +90,11 @@ resource "aws_dynamodb_table" "workspaces" {
 
   point_in_time_recovery {
     enabled = var.point_in_time_recovery
+  }
+
+  # Terraform refuses to plan destroying (or replacing) the hosted app's data.
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -83,8 +107,11 @@ resource "aws_dynamodb_table" "workspaces" {
 resource "aws_dynamodb_table" "karma_selfhosted" {
   name         = var.selfhosted_table_names.karma
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "team_id"
-  range_key    = "user_id"
+
+  # Refuse deletion in AWS itself, whatever a plan says.
+  deletion_protection_enabled = true
+  hash_key                    = "team_id"
+  range_key                   = "user_id"
 
   attribute {
     name = "team_id"
@@ -120,8 +147,11 @@ resource "aws_dynamodb_table" "karma_selfhosted" {
 resource "aws_dynamodb_table" "channel_settings_selfhosted" {
   name         = var.selfhosted_table_names.settings
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "team_id"
-  range_key    = "channel_id"
+
+  # Refuse deletion in AWS itself, whatever a plan says.
+  deletion_protection_enabled = true
+  hash_key                    = "team_id"
+  range_key                   = "channel_id"
 
   attribute {
     name = "team_id"
@@ -140,7 +170,10 @@ resource "aws_dynamodb_table" "channel_settings_selfhosted" {
 resource "aws_dynamodb_table" "workspaces_selfhosted" {
   name         = var.selfhosted_table_names.workspaces
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "team_id"
+
+  # Refuse deletion in AWS itself, whatever a plan says.
+  deletion_protection_enabled = true
+  hash_key                    = "team_id"
 
   attribute {
     name = "team_id"
