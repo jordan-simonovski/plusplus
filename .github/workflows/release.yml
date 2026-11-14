@@ -37,10 +37,10 @@ jobs:
         env:
           HUSKY: "0"
 
-      # v1 because the repo uses Changesets CLI v2 (action v2 refuses to run with it).
-      # Pinned to a commit: this step holds a token that can write to the repo.
+      # Action v2 needs Changesets CLI v3 (and the v1 action needs CLI v2), so the two
+      # move together. Pinned to a commit: this step holds a token that can write to the repo.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: npm run release
-          commit: "chore: release"
-          title: "chore: release"
+          version-script: npm run release
+          commit-message: "chore: release"
+          pr-title: "chore: release"
