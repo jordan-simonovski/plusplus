@@ -159,6 +159,8 @@ code {
   font-size: 0.9rem;
   color: var(--muted);
 }
+.hero__note a { color: inherit; }
+.hero__note a:hover { color: var(--text); }
 
 /* ---------- Hero demo ---------- */
 .hero__demo {
@@ -574,6 +576,10 @@ code {
   .hero__demo { padding: 0 16px; }
   .slack__tabs { gap: 4px; }
   .slack__tab { font-size: 0.8rem; padding: 4px 9px; }
+}
+
+@media (max-width: 640px) {
+  .nav__link--marketplace { display: none; } /* hero and footer still link to it */
 }
 
 @media (max-width: 380px) {
