@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -18,7 +19,7 @@ type recordingSnarkSetter struct {
 }
 
 func (r *recordingSnarkSetter) SetSnarkLevel(_ context.Context, team, channel, user string, level int) (string, error) {
-	r.calls = append(r.calls, strings.Join([]string{team, channel, user, string(rune('0' + level))}, "/"))
+	r.calls = append(r.calls, strings.Join([]string{team, channel, user, strconv.Itoa(level)}, "/"))
 	if r.err != nil {
 		return "", r.err
 	}
@@ -64,6 +65,7 @@ func TestInteractionsSnarkLevel(t *testing.T) {
 		"level 11":               {body: interactionBody(snarkSelect("11")), sign: true, wantCode: http.StatusOK, wantText: "Invalid snark level."},
 		"level abc":              {body: interactionBody(snarkSelect("abc")), sign: true, wantCode: http.StatusOK, wantText: "Invalid snark level."},
 		"valid level":            {body: interactionBody(snarkSelect("7")), sign: true, wantCode: http.StatusOK, wantText: "Snark level updated.", wantCalls: []string{"T1/C1/U1/7"}},
+		"level 10, the maximum":  {body: interactionBody(snarkSelect("10")), sign: true, wantCode: http.StatusOK, wantText: "Snark level updated.", wantCalls: []string{"T1/C1/U1/10"}},
 		"service error is a 500": {body: interactionBody(snarkSelect("7")), sign: true, storeErr: errors.New("dynamo down"), wantCode: http.StatusInternalServerError, wantCalls: []string{"T1/C1/U1/7"}},
 	}
 	for name, tc := range cases {
