@@ -26,13 +26,13 @@ Tags:
 | Tag         | Meaning                                                        |
 | ----------- | -------------------------------------------------------------- |
 | `latest`    | Most recent build from `main`.                                 |
-| `X.Y.Z`     | The `version` from `package.json` at build time (e.g. `0.1.0`).|
+| `X.Y.Z`     | The release build of that version (e.g. `1.0.0`). Never moved. |
 | `sha-<sha>` | The exact commit, for reproducible pins.                       |
 
 Pin to a version tag in production rather than `latest`:
 
 ```bash
-docker pull ghcr.io/jordan-simonovski/plusplus:0.1.0
+docker pull ghcr.io/jordan-simonovski/plusplus:1.0.0
 ```
 
 The image is multi-arch (`linux/amd64` and `linux/arm64`); Docker pulls the

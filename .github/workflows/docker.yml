@@ -1,8 +1,10 @@
 name: docker
 
 # Build and publish the container image to GitHub Container Registry on every
-# push to main. The image is tagged with the package.json version, the short
-# commit SHA, and `latest`, and is built for both linux/amd64 and linux/arm64.
+# push to main. The image is tagged with the short commit SHA and `latest`, and
+# is built for both linux/amd64 and linux/arm64. The package.json version tag is
+# only pushed by the first build of that version (the release merge), so a
+# pinned `X.Y.Z` always points at the release and is never overwritten.
 on:
   push:
     branches: [main]
@@ -51,6 +53,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ponytail: any inspect failure (not just "not found") counts as unpublished,
+      # so a registry hiccup re-pushes the version tag; fail-closed check if that bites.
+      - name: Check whether this version is already published
+        id: published
+        run: |
+          image="${REGISTRY}/${IMAGE_NAME,,}:${{ steps.version.outputs.version }}"
+          if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -58,7 +72,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.published.outputs.exists == 'false' }}
             type=sha,format=short
 
       - name: Build and push
