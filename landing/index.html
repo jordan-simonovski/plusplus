@@ -228,6 +228,9 @@
       // A reaction scene posts the message, then each reaction lands on it and
       // plusplus answers in the message's thread (events_processor.go handleReaction).
       // Only the strongest reaction counts, so 🏆 after 👏 adds the difference.
+      // A message with both a reply and reactions is typed karma that others pile
+      // onto: reacting to it credits the people it named, not whoever typed it. Both
+      // replies go in its thread so they read in order.
       var scenes = [
         {
           label: 'React',
@@ -279,6 +282,17 @@
           }]
         },
         {
+          label: 'Pile on',
+          messages: [{
+            author: mark, time: '11:15 AM',
+            segments: [at('plusplus'), { text: ' ' }, at('johnson'), sym('+', 5)],
+            reply: applied('Alan Johnson', 'gained', 4, 49, 53),
+            reactions: [
+              { emoji: '🔥', reply: applied('Alan Johnson', 'gained', 4, 53, 57) }
+            ]
+          }]
+        },
+        {
           label: 'Capped',
           messages: [{
             author: jez, time: '2:17 PM',
@@ -297,7 +311,7 @@
               + '<span class="slack__line">All-time karma leaderboard</span>'
               + '<span class="slack__line">1. <em><strong>Super Hans</strong></em> - 62</span>'
               + '<span class="slack__line">2. <em><strong>Sophie Chapman</strong></em> - 61</span>'
-              + '<span class="slack__line">3. <em><strong>Dobby</strong></em> - 37</span>'
+              + '<span class="slack__line">3. <em><strong>Alan Johnson</strong></em> - 57</span>'
               + '</span>'
           }]
         }
@@ -354,7 +368,7 @@
         if (!row) {
           row = document.createElement('div');
           row.className = 'slack__reactions';
-          body.appendChild(row);
+          body.insertBefore(row, body.querySelector('.slack__thread'));
         }
         var pill = document.createElement('span');
         pill.className = 'slack__reaction slack__reaction--mine';
@@ -441,24 +455,22 @@
           after(380, function () {
             resetComposer();
             var posted = addUserMsg(m.author, m.time, m.segments);
-            if (m.reactions) {
+            var last = mi === messages.length - 1;
+            function next() { playMessages(messages, mi + 1, done); }
+            function react() {
               after(900, function () {
-                playReactions(posted, m.reactions, 0, function () {
-                  after(3000, function () { playMessages(messages, mi + 1, done); });
-                });
+                playReactions(posted, m.reactions, 0, function () { after(3000, next); });
               });
-              return;
             }
+            if (!m.reply) { react(); return; }
             after(600, function () {
-              var text = addBotMsg(typingDots);
+              var text = addBotMsg(typingDots, m.reactions && threadOf(posted));
               after(1200, function () {
                 text.innerHTML = m.reply;
                 tickTotals(text);
                 toBottom();
-                var last = mi === messages.length - 1;
-                after(last ? 3000 : 1100, function () {
-                  playMessages(messages, mi + 1, done);
-                });
+                if (m.reactions) { react(); return; }
+                after(last ? 3000 : 1100, next);
               });
             });
           });
@@ -483,14 +495,11 @@
       function renderStatic(scene) {
         scene.messages.forEach(function (m) {
           var posted = addUserMsg(m.author, m.time, m.segments);
-          if (m.reactions) {
-            m.reactions.forEach(function (r) {
-              addReaction(posted, r.emoji);
-              addBotMsg(r.reply, threadOf(posted));
-            });
-            return;
-          }
-          addBotMsg(m.reply);
+          if (m.reply) addBotMsg(m.reply, m.reactions && threadOf(posted));
+          (m.reactions || []).forEach(function (r) {
+            addReaction(posted, r.emoji);
+            addBotMsg(r.reply, threadOf(posted));
+          });
         });
         toBottom();
       }
