@@ -77,8 +77,9 @@ const karmaMessageRowPrefix = "#km#"
 
 const attrKarmaTargets = "targets"
 
-// RecordKarmaTargets remembers the users a typed karma message credited. An empty
-// list (a user-group-only message) is still recorded so reactions credit nobody.
+// RecordKarmaTargets remembers the users a typed karma message credited, user group
+// members included. An empty list (say, a group that couldn't be loaded) is still
+// recorded so reactions credit nobody rather than the poster.
 func (s *DynamoReactionStore) RecordKarmaTargets(ctx context.Context, teamID, channelID, messageTS string, targets []string) error {
 	_, err := s.client.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(s.table),

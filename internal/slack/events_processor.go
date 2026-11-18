@@ -245,12 +245,8 @@ func (p *EventsProcessor) handleKarmaMessage(ctx context.Context, envelope Event
 		case parser.KarmaSegmentSubteam:
 			g := p.resolveGroup(ctx, envelope, seg.SubteamID)
 			groups[seg.SubteamID] = g
-			for _, uid := range g.members {
-				// The poster gets nothing from their own group award, so reactions don't give it either.
-				if uid != envelope.Event.User {
-					targets = append(targets, uid)
-				}
-			}
+			// The poster stays in: the reactor is endorsing the whole group, poster included.
+			targets = append(targets, g.members...)
 		}
 	}
 
@@ -589,7 +585,8 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 			TargetHandle: "<@" + target + ">",
 			SymbolRun:    symbolRun(delta),
 			SnarkLevel:   snarkLevel,
-			SkipWar:      !added || domain.NetReactionTier(before) != 0,
+			// One reaction is one gesture: crediting a whole message's targets isn't a burst.
+			SkipWar: !added || domain.NetReactionTier(before) != 0 || len(targets) > 1,
 		})
 		if err != nil {
 			// Take back what this event already gave and put the reaction state back, so

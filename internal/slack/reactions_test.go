@@ -230,12 +230,12 @@ func TestReactionsOnTypedKarmaCreditTheMentionedPeople(t *testing.T) {
 	react("reaction_added", "100.1", "U1", "fire")   // emojis keep their meaning: +4 to each mentioned person
 	react("reaction_added", "100.1", "U3", "clap")   // a mentioned person can't credit themselves: U4 only
 	react("reaction_added", "100.1", "U2", "trophy") // the poster reacting to their own message: ignored
-	react("reaction_added", "100.2", "U1", "fire")   // user-group award: its members, minus the poster and reactor
+	react("reaction_added", "100.2", "U1", "fire")   // user-group award: its members (poster included), minus the reactor
 	react("reaction_added", "100.9", "U1", "clap")   // ordinary message: the author, as before
 	react("reaction_removed", "100.1", "U1", "fire") // removal takes it back from the same people
 	react("reaction_removed", "100.1", "U3", "clap") // and still skips the reactor
 
-	want := "U3 +++++,U4 +++++,U4 ++,U3 +++++,U5 +++++,U2 ++,U3 -----,U4 -----,U4 --"
+	want := "U3 +++++,U4 +++++,U4 ++,U2 +++++,U3 +++++,U5 +++++,U2 ++,U3 -----,U4 -----,U4 --"
 	if got := strings.Join(runs, ","); got != want {
 		t.Fatalf("karma runs = %s, want %s", got, want)
 	}
@@ -459,6 +459,36 @@ func TestReactionUpgradesAndRemovalsSkipKarmaWar(t *testing.T) {
 	sendReaction(t, p, "reaction_removed", "U1", "U2", "trophy") // removal
 	if len(skip) != 3 || skip[0] || !skip[1] || !skip[2] {
 		t.Fatalf("SkipWar = %v, want [false true true]", skip)
+	}
+}
+
+func TestReactionsOnGroupKarma(t *testing.T) {
+	var runs []string
+	var skip []bool
+	team := &fakeUserGroupLister{ids: []string{"U3", "U4", "U5"}}
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, skipWar: &skip}, nil, team, &fakeWebClient{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+
+	if code := postKarma(p, "100.1", "<@U3> ++ <!subteam^S1|@team> ++"); code != http.StatusOK {
+		t.Fatalf("post: status %d", code)
+	}
+	team.err = errors.New("usergroups down")
+	if code := postKarma(p, "100.2", "<!subteam^S1|@team> ++"); code != http.StatusOK {
+		t.Fatalf("post: status %d", code)
+	}
+	runs, skip = nil, nil
+
+	reactAt(p, "reaction_added", "100.1", "U1", "clap")   // U3 is mentioned and in the group: credited once
+	reactAt(p, "reaction_removed", "100.1", "U1", "clap") // removal takes it back from the same people
+	reactAt(p, "reaction_added", "100.2", "U1", "clap")   // group failed to load: nobody, not the poster
+
+	want := "U3 ++,U4 ++,U5 ++,U3 --,U4 --,U5 --"
+	if got := strings.Join(runs, ","); got != want {
+		t.Fatalf("karma runs = %s, want %s", got, want)
+	}
+	for i, s := range skip {
+		if !s {
+			t.Fatalf("a reaction crediting several people must not count as a karma-war burst (call %d)", i)
+		}
 	}
 }
 
