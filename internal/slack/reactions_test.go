@@ -621,3 +621,51 @@ func TestReactionTogglingStaysQuiet(t *testing.T) {
 		t.Fatalf("SkipWar = %v, want %v", skip, want)
 	}
 }
+
+func TestReactionCooldownKeysOnTheChangeNotTheTotal(t *testing.T) {
+	var runs []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+
+	sendReaction(t, p, "reaction_added", "U1", "U2", "raised_hands") // 0 -> 2: reply
+	sendReaction(t, p, "reaction_added", "U1", "U2", "fire")         // 2 -> 4: reply
+	sendReaction(t, p, "reaction_added", "U1", "U2", "-1")           // 4 -> 2: a downvote back to an answered total still replies
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "-1")
+	sendReaction(t, p, "reaction_added", "U1", "U2", "-1") // the same change again: quiet
+
+	if got, want := strings.Join(runs, ","), "U2 +++,U2 +++,U2 ---,U2 +++,U2 ---"; got != want {
+		t.Fatalf("karma runs = %s, want %s", got, want)
+	}
+	if len(web.posts) != 3 {
+		t.Fatalf("expected 3 replies, got %d", len(web.posts))
+	}
+}
+
+func TestReactionReplyFailureDoesNotStartCooldown(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &failingWeb{}).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")
+	if len(p.replyCooldown.until) != 0 {
+		t.Fatalf("a reply that never posted must not silence the next one")
+	}
+}
+
+func TestReplyCooldownEvictsWhenFull(t *testing.T) {
+	now := time.Unix(1000, 0)
+	c := newReplyCooldown(time.Minute)
+	c.now = func() time.Time { return now }
+	c.maxEntries = 2
+
+	c.start("a")
+	c.start("b")
+	now = now.Add(time.Minute)
+	c.start("c") // a and b expired: dropped to make room
+	if len(c.until) != 1 || !c.active("c") {
+		t.Fatalf("expired entries should be evicted first, got %v", c.until)
+	}
+	c.start("d")
+	c.start("e") // full of live entries: start over
+	if c.active("c") || c.active("d") || !c.active("e") {
+		t.Fatalf("a cooldown full of live entries should clear, got %v", c.until)
+	}
+}
