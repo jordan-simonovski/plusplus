@@ -209,7 +209,8 @@ func TestReactionKarmaHighestTierAndUndo(t *testing.T) {
 func TestReactionsOnTypedKarmaCreditTheMentionedPeople(t *testing.T) {
 	var runs []string
 	web := &fakeWebClient{}
-	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	team := &fakeUserGroupLister{ids: []string{"U1", "U2", "U3", "U5", "U3"}}
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, team, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
 
 	post := func(ts, text string) {
 		if code := postKarma(p, ts, text); code != http.StatusOK {
@@ -229,16 +230,16 @@ func TestReactionsOnTypedKarmaCreditTheMentionedPeople(t *testing.T) {
 	react("reaction_added", "100.1", "U1", "fire")   // emojis keep their meaning: +4 to each mentioned person
 	react("reaction_added", "100.1", "U3", "clap")   // a mentioned person can't credit themselves: U4 only
 	react("reaction_added", "100.1", "U2", "trophy") // the poster reacting to their own message: ignored
-	react("reaction_added", "100.2", "U1", "fire")   // user-group award: credits nobody
+	react("reaction_added", "100.2", "U1", "fire")   // user-group award: its members, minus the poster and reactor
 	react("reaction_added", "100.9", "U1", "clap")   // ordinary message: the author, as before
 	react("reaction_removed", "100.1", "U1", "fire") // removal takes it back from the same people
 	react("reaction_removed", "100.1", "U3", "clap") // and still skips the reactor
 
-	want := "U3 +++++,U4 +++++,U4 ++,U2 ++,U3 -----,U4 -----,U4 --"
+	want := "U3 +++++,U4 +++++,U4 ++,U3 +++++,U5 +++++,U2 ++,U3 -----,U4 -----,U4 --"
 	if got := strings.Join(runs, ","); got != want {
 		t.Fatalf("karma runs = %s, want %s", got, want)
 	}
-	if len(web.posts) != 3 || web.posts[0].text != "applied\napplied" {
+	if len(web.posts) != 4 || web.posts[0].text != "applied\napplied" {
 		t.Fatalf("expected one combined reply per award, got %+v", web.posts)
 	}
 }

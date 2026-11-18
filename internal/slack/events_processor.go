@@ -235,14 +235,28 @@ func (p *EventsProcessor) handleKarmaMessage(ctx context.Context, envelope Event
 		claimed = true
 	}
 
-	// Recorded before any karma is applied, so failing here is safe for Slack to retry.
-	if p.reactionState != nil {
-		var targets []string
-		for _, seg := range segments {
-			if seg.Kind == parser.KarmaSegmentUser {
-				targets = append(targets, seg.UserID)
+	// Groups are resolved once, up front, so reactions credit the members this message credited.
+	groups := map[string]resolvedGroup{}
+	var targets []string
+	for _, seg := range segments {
+		switch seg.Kind {
+		case parser.KarmaSegmentUser:
+			targets = append(targets, seg.UserID)
+		case parser.KarmaSegmentSubteam:
+			g := p.resolveGroup(ctx, envelope, seg.SubteamID)
+			groups[seg.SubteamID] = g
+			for _, uid := range g.members {
+				// The poster gets nothing from their own group award, so reactions don't give it either.
+				if uid != envelope.Event.User {
+					targets = append(targets, uid)
+				}
 			}
 		}
+	}
+
+	// Recorded before any karma is applied, so failing here is safe for Slack to retry.
+	if p.reactionState != nil {
+		targets = dedupePreserveOrder(targets)
 		if err := p.reactionState.RecordKarmaTargets(ctx, envelope.TeamID, envelope.Event.Channel, messageTS(envelope.Event), targets); err != nil {
 			if claimed {
 				p.releaseEvent(ctx, envelope)
@@ -275,7 +289,7 @@ func (p *EventsProcessor) handleKarmaMessage(ctx context.Context, envelope Event
 			}
 
 		case parser.KarmaSegmentSubteam:
-			if err := p.handleSubteamKarma(ctx, envelope, seg, threadTS, snarkLevel); err != nil {
+			if err := p.handleSubteamKarma(ctx, envelope, seg, groups[seg.SubteamID], threadTS, snarkLevel); err != nil {
 				return &eventFailure{status: http.StatusBadGateway, body: err.Error(), log: "user group karma failed", err: err}
 			}
 		}
@@ -352,34 +366,46 @@ func messageEventDuplicatesAppMention(envelope EventEnvelope) bool {
 	return strings.Contains(envelope.Event.Text, "<@"+botID+">")
 }
 
+// resolvedGroup is a user group's members, or the notice to post when it can't be credited.
+type resolvedGroup struct {
+	members []string
+	notice  string
+}
+
+func (p *EventsProcessor) resolveGroup(ctx context.Context, envelope EventEnvelope, subteamID string) resolvedGroup {
+	if p.userGroups == nil {
+		return resolvedGroup{notice: "Could not resolve user groups (not configured)."}
+	}
+	members, err := p.userGroups.ListUserGroupMembers(ctx, envelope.TeamID, subteamID)
+	if err != nil {
+		slog.Warn("user group members unavailable", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
+		return resolvedGroup{notice: "Could not load members for that user group."}
+	}
+	members = dedupePreserveOrder(members)
+	if len(members) == 0 {
+		return resolvedGroup{notice: "That user group has no members."}
+	}
+	// Each member costs two DynamoDB writes and a users.info call, all inside the request.
+	if len(members) > maxGroupMembers {
+		return resolvedGroup{notice: domain.FormatGroupTooLarge(len(members), maxGroupMembers)}
+	}
+	return resolvedGroup{members: members}
+}
+
 func (p *EventsProcessor) handleSubteamKarma(
 	ctx context.Context,
 	envelope EventEnvelope,
 	seg parser.KarmaSegment,
+	group resolvedGroup,
 	threadTS string,
 	snarkLevel int,
 ) error {
-	if p.userGroups == nil {
-		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "Could not resolve user groups (not configured).", threadTS)
-	}
-
-	members, err := p.userGroups.ListUserGroupMembers(ctx, envelope.TeamID, seg.SubteamID)
-	if err != nil {
-		slog.Warn("user group members unavailable", "team", envelope.TeamID, "kind", envelope.Event.Type, "err", err)
-		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "Could not load members for that user group.", threadTS)
-	}
-
-	members = dedupePreserveOrder(members)
-	if len(members) == 0 {
-		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, "That user group has no members.", threadTS)
-	}
-	// Each member costs two DynamoDB writes and a users.info call, all inside the request.
-	if len(members) > maxGroupMembers {
-		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, domain.FormatGroupTooLarge(len(members), maxGroupMembers), threadTS)
+	if group.notice != "" {
+		return p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, group.notice, threadTS)
 	}
 
 	var lines []string
-	for _, uid := range members {
+	for _, uid := range group.members {
 		result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
 			TeamID:         envelope.TeamID,
 			ActorUserID:    envelope.Event.User,
