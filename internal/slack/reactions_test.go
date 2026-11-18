@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"plusplus/internal/domain"
 )
@@ -589,4 +591,33 @@ type failingGetOverrides struct{ memOverrides }
 
 func (f *failingGetOverrides) GetReactionOverrides(context.Context, string, string) (domain.TierOverrides, domain.TierOverrides, error) {
 	return nil, nil, errors.New("dynamo down")
+}
+
+func TestReactionTogglingStaysQuiet(t *testing.T) {
+	var runs []string
+	var skip []bool
+	web := &fakeWebClient{}
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, skipWar: &skip}, nil, nil, web).WithReactions(defaultTiers{}, memReactionState{}, 5)
+	now := time.Unix(1000, 0)
+	p.replyCooldown.now = func() time.Time { return now }
+
+	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")   // +1: reply
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "clap") // removals are always silent
+	sendReaction(t, p, "reaction_added", "U1", "U2", "clap")   // toggled back: karma moves, no reply
+	sendReaction(t, p, "reaction_added", "U3", "U2", "clap")   // someone else's reaction still replies
+	sendReaction(t, p, "reaction_added", "U1", "U2", "fire")   // an upgrade is a new award: reply
+	now = now.Add(reactionReplyCooldown)
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "fire")
+	sendReaction(t, p, "reaction_removed", "U1", "U2", "clap")
+	sendReaction(t, p, "reaction_added", "U1", "U2", "clap") // window over: a reply and a war interaction again
+
+	if got, want := strings.Join(runs, ","), "U2 ++,U2 --,U2 ++,U2 ++,U2 ++++,U2 ----,U2 --,U2 ++"; got != want {
+		t.Fatalf("karma runs = %s, want %s", got, want)
+	}
+	if len(web.posts) != 4 {
+		t.Fatalf("expected 4 replies, got %d", len(web.posts))
+	}
+	if want := []bool{false, true, true, false, true, true, true, false}; fmt.Sprint(skip) != fmt.Sprint(want) {
+		t.Fatalf("SkipWar = %v, want %v", skip, want)
+	}
 }

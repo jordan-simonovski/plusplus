@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"plusplus/internal/domain"
 	"plusplus/internal/parser"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -73,6 +74,7 @@ type EventsProcessor struct {
 	reactionTiers ReactionTierProvider
 	reactionState ReactionStateStore
 	reactionCap   int
+	replyCooldown *replyCooldown
 }
 
 // WithReactions enables emoji-reaction karma. Without it reaction events are ignored.
@@ -81,6 +83,7 @@ func (p *EventsProcessor) WithReactions(tiers ReactionTierProvider, state Reacti
 	p.reactionTiers = tiers
 	p.reactionState = state
 	p.reactionCap = maxKarmaPerAction
+	p.replyCooldown = newReplyCooldown(reactionReplyCooldown)
 	return p
 }
 
@@ -576,6 +579,11 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 		}
 	}
 
+	// A re-add that lands on an award this reactor was already answered for recently is
+	// toggling: the karma still moves, but there's no reply and it isn't a new interaction.
+	replyKey := strings.Join([]string{team, channel, ts, reactor, strconv.Itoa(domain.NetReactionTier(after))}, "|")
+	quiet := added && p.replyCooldown.active(replyKey)
+
 	var lines, applied []string
 	for _, target := range targets {
 		result, err := p.karmaService.HandleAction(ctx, domain.KarmaAction{
@@ -586,7 +594,7 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 			SymbolRun:    symbolRun(delta),
 			SnarkLevel:   snarkLevel,
 			// One reaction is one gesture: crediting a whole message's targets isn't a burst.
-			SkipWar: !added || domain.NetReactionTier(before) != 0 || len(targets) > 1,
+			SkipWar: !added || quiet || domain.NetReactionTier(before) != 0 || len(targets) > 1,
 		})
 		if err != nil {
 			// Take back what this event already gave and put the reaction state back, so
@@ -603,9 +611,10 @@ func (p *EventsProcessor) handleReaction(ctx context.Context, envelope EventEnve
 			lines = append(lines, result.Message)
 		}
 	}
-	if !added || len(lines) == 0 {
+	if !added || quiet || len(lines) == 0 {
 		return nil
 	}
+	p.replyCooldown.start(replyKey)
 	// Karma is applied; a retry couldn't post the reply anyway (it would see no change).
 	if err := p.webClient.PostMessage(ctx, team, channel, strings.Join(lines, "\n"), ts); err != nil {
 		slog.Warn("reaction karma reply failed", "team", team, "kind", ev.Type, "channel", channel, "err", err)
