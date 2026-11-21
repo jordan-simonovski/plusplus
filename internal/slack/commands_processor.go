@@ -80,6 +80,7 @@ var usageText = fmt.Sprintf(
 	"*PlusPlus help*\n"+
 		"• First, invite the bot to the channel: `/invite @plusplus`\n"+
 		"• Give karma: mention the bot and a teammate, e.g. `@plusplus @sam ++` (`--` docks karma)\n"+
+		"• Several at once: `@plusplus @sam @alex ++` gives both the same, `@plusplus @sam ++ @alex --` gives each their own\n"+
 		"• `/plusplus-leaderboard` — all-time karma leaderboard\n"+
 		"• `/plusplus-settings` — interactive channel settings\n"+
 		"• `/plusplus-settings reply_mode thread|channel` — where the bot replies\n"+
