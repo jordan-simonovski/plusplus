@@ -72,6 +72,18 @@ const GroupAwardStoppedNote = "_Something went wrong partway through, so the res
 // partway: the people listed above it were credited, the rest were not.
 const AwardStoppedNote = "_Something went wrong partway through, so the rest didn't get karma. Everyone listed above did._"
 
+// Notices on the settings panel after a change that couldn't be made.
+const (
+	PanelBadSnarkLevel = "That isn't a snark level."
+	PanelBadReplyMode  = "That isn't a reply mode."
+	PanelPickTierFirst = "Pick a tier first, then type the emojis."
+)
+
+// FormatPanelInputError shows why a settings panel change was refused.
+func FormatPanelInputError(reason string) string {
+	return "Couldn't change that: " + reason + "."
+}
+
 // FormatGroupTooLarge replies to karma for a user group bigger than the group-karma limit.
 func FormatGroupTooLarge(size, limit int) string {
 	return fmt.Sprintf("That user group has %d people, and group karma works for groups of up to %d. Give karma to people individually instead.", size, limit)

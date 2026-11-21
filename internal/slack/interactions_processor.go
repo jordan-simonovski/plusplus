@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"plusplus/internal/domain"
 )
@@ -71,7 +72,7 @@ func (p *InteractionsProcessor) HandleInteraction(w http.ResponseWriter, r *http
 		case actionSnarkLevel:
 			level, err := strconv.Atoi(value)
 			if err != nil || level < domain.MinSnarkLevel || level > domain.MaxSnarkLevel {
-				notice = "That isn't a snark level."
+				notice = domain.PanelBadSnarkLevel
 				continue
 			}
 			if notice, err = p.settings.SetSnarkLevel(ctx, team, channel, user, level); err != nil {
@@ -82,7 +83,7 @@ func (p *InteractionsProcessor) HandleInteraction(w http.ResponseWriter, r *http
 		case actionReplyMode:
 			mode := ReplyMode(value)
 			if mode != ReplyModeThread && mode != ReplyModeChannel {
-				notice = "That isn't a reply mode."
+				notice = domain.PanelBadReplyMode
 				continue
 			}
 			if notice, err = p.settings.SetReplyMode(ctx, team, channel, user, mode); err != nil {
@@ -94,18 +95,20 @@ func (p *InteractionsProcessor) HandleInteraction(w http.ResponseWriter, r *http
 			if p.reactions == nil {
 				continue
 			}
-			workspace := payload.State.selected(actionEmojiScope) == emojiScopeWorkspace
 			var err error
 			if action.ActionID == actionEmojiReset {
-				notice, err = p.reactions.Reset(ctx, team, channel, workspace, user)
+				// Always this channel: a workspace box left ticked from an earlier edit must not
+				// turn Reset into a workspace wipe. `/plusplus-settings emoji workspace reset` does that.
+				notice, err = p.reactions.Reset(ctx, team, channel, false, user)
 			} else if tier := payload.State.selected(actionEmojiTier); tier == "" {
-				notice = "Pick a tier first, then type the emojis."
+				notice = domain.PanelPickTierFirst
 			} else {
+				workspace := payload.State.selected(actionEmojiScope) == emojiScopeWorkspace
 				notice, err = p.reactions.SetTier(ctx, team, channel, workspace, user, tier, strings.Fields(action.Value))
 			}
 			var input *InputError
 			if errors.As(err, &input) {
-				notice = "Couldn't change that: " + input.Msg + "."
+				notice = domain.FormatPanelInputError(input.Msg)
 			} else if err != nil {
 				slog.Error("update karma reactions failed", "team", team, "kind", "interaction", "err", err)
 				http.Error(w, "failed to update settings", http.StatusInternalServerError)
@@ -119,28 +122,33 @@ func (p *InteractionsProcessor) HandleInteraction(w http.ResponseWriter, r *http
 	}
 
 	// The setting is saved; a panel that can't be redrawn is cosmetic, so Slack still gets 200.
-	var reactions emojiDescriber
-	if p.reactions != nil {
-		reactions = p.reactions
-	}
-	panel, err := loadSettingsPanel(ctx, p.settings, reactions, team, channel, "interaction", p.version)
+	panel, err := loadSettingsPanel(ctx, p.settings, p.reactions, team, channel, "interaction", p.version)
 	if err != nil {
 		slog.Warn("settings panel refresh failed", "team", team, "kind", "interaction", "err", err)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 	panel.notice = notice
-	if err := p.replacePanel(ctx, payload.ResponseURL, notice, settingsBlocks(panel)); err != nil {
+	// Slack wants the ack within 3 seconds, so the redraw gets what's left of that, roughly.
+	redrawCtx, cancel := context.WithTimeout(ctx, redrawTimeout)
+	defer cancel()
+	if err := p.replacePanel(redrawCtx, payload.ResponseURL, notice, settingsBlocks(panel)); err != nil {
 		slog.Warn("settings panel refresh failed", "team", team, "kind", "interaction", "err", err)
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
+// redrawTimeout bounds the panel redraw so the interaction is still acked in time.
+const redrawTimeout = 2 * time.Second
+
+// slackHookHosts are where Slack's response_urls point (commercial and GovSlack).
+var slackHookHosts = map[string]bool{"hooks.slack.com": true, "hooks.slack-gov.com": true}
+
 // replacePanel swaps the ephemeral panel for blocks. response_url comes from a verified
 // payload, but it is still checked to be Slack's, so the bot never posts anywhere else.
 func (p *InteractionsProcessor) replacePanel(ctx context.Context, responseURL, text string, blocks []map[string]interface{}) error {
 	u, err := url.Parse(responseURL)
-	if err != nil || u.Scheme != "https" || u.Host != "hooks.slack.com" {
+	if err != nil || u.Scheme != "https" || !slackHookHosts[u.Host] {
 		return fmt.Errorf("unexpected response_url host")
 	}
 	body, err := json.Marshal(map[string]interface{}{"replace_original": true, "text": text, "blocks": blocks})
@@ -154,6 +162,12 @@ func (p *InteractionsProcessor) replacePanel(ctx context.Context, responseURL, t
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		// A *url.Error carries the response_url, which works like a short-lived credential:
+		// keep only the cause so it never reaches the logs.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return fmt.Errorf("post panel: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()

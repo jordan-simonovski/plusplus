@@ -161,11 +161,7 @@ func (p *CommandsProcessor) respondSettings(w http.ResponseWriter, r *http.Reque
 }
 
 func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r *http.Request, payload SlashCommandPayload) {
-	var reactions emojiDescriber
-	if p.reactions != nil {
-		reactions = p.reactions
-	}
-	panel, err := loadSettingsPanel(r.Context(), p.settingsService, reactions, payload.TeamID, payload.ChannelID, payload.Command, p.version)
+	panel, err := loadSettingsPanel(r.Context(), p.settingsService, p.reactions, payload.TeamID, payload.ChannelID, payload.Command, p.version)
 	if err != nil {
 		slog.Error("load settings failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		http.Error(w, "failed to load settings", http.StatusInternalServerError)

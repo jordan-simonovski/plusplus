@@ -137,6 +137,10 @@ func settingsBlocks(p settingsPanel) []map[string]interface{} {
 	})
 }
 
+// maxEmojiInput caps the emoji field: room for the 10 emojis a tier allows, and short
+// enough that an echoed mistake keeps the redrawn panel under Slack's size limits.
+const maxEmojiInput = 500
+
 // emojiEditBlocks lets people point a tier at new emojis without typing a command. The
 // tier and scope are read from the message state when Enter is pressed in the input.
 func emojiEditBlocks() []map[string]interface{} {
@@ -171,7 +175,7 @@ func emojiEditBlocks() []map[string]interface{} {
 					"text":      plainText("Reset"),
 					"confirm": map[string]interface{}{
 						"title":   plainText("Reset karma reactions?"),
-						"text":    plainText("This channel goes back to the workspace emojis. Tick Whole workspace first to reset the workspace instead."),
+						"text":    plainText("This channel goes back to the workspace's karma reactions."),
 						"confirm": plainText("Reset"),
 						"deny":    plainText("Cancel"),
 					},
@@ -187,6 +191,7 @@ func emojiEditBlocks() []map[string]interface{} {
 				"type":                   "plain_text_input",
 				"action_id":              actionEmojiInput,
 				"placeholder":            plainText(":tada: :rocket:"),
+				"max_length":             maxEmojiInput,
 				"dispatch_action_config": map[string]interface{}{"trigger_actions_on": []string{"on_enter_pressed"}},
 			},
 		},

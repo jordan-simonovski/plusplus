@@ -75,17 +75,19 @@ func TestInteractionsSettingsPanel(t *testing.T) {
 		wantLevels string
 		wantNotice string // the refreshed panel's notice; empty means no refresh
 	}{
-		"unsigned":             {body: interactionBody(panelAction(actionSnarkLevel, "7", hook)), wantCode: http.StatusUnauthorized},
-		"no payload field":     {body: interactionBody(""), sign: true, wantCode: http.StatusBadRequest},
-		"not block_actions":    {body: interactionBody(`{"type":"view_submission"}`), sign: true, wantCode: http.StatusOK},
-		"unknown action":       {body: interactionBody(panelAction("other", "7", hook)), sign: true, wantCode: http.StatusOK},
-		"snark level":          {body: interactionBody(panelAction(actionSnarkLevel, "7", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[7]", wantNotice: "Snark level set to 7."},
-		"snark 10, the max":    {body: interactionBody(panelAction(actionSnarkLevel, "10", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[10]", wantNotice: "Snark level set to 10."},
-		"snark out of range":   {body: interactionBody(panelAction(actionSnarkLevel, "11", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[]", wantNotice: "That isn't a snark level."},
-		"snark not a number":   {body: interactionBody(panelAction(actionSnarkLevel, "abc", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[]", wantNotice: "That isn't a snark level."},
-		"reply mode channel":   {body: interactionBody(panelAction(actionReplyMode, "channel", hook)), sign: true, wantCode: http.StatusOK, wantModes: "[channel]", wantNotice: "Reply mode set to channel."},
-		"reply mode unknown":   {body: interactionBody(panelAction(actionReplyMode, "dm", hook)), sign: true, wantCode: http.StatusOK, wantModes: "[]", wantNotice: "That isn't a reply mode."},
-		"store error is a 500": {body: interactionBody(panelAction(actionSnarkLevel, "7", hook)), sign: true, storeErr: errors.New("dynamo down"), wantCode: http.StatusInternalServerError, wantLevels: "[7]"},
+		"unsigned":                        {body: interactionBody(panelAction(actionSnarkLevel, "7", hook)), wantCode: http.StatusUnauthorized},
+		"no payload field":                {body: interactionBody(""), sign: true, wantCode: http.StatusBadRequest},
+		"not block_actions":               {body: interactionBody(`{"type":"view_submission"}`), sign: true, wantCode: http.StatusOK},
+		"unknown action":                  {body: interactionBody(panelAction("other", "7", hook)), sign: true, wantCode: http.StatusOK},
+		"snark level":                     {body: interactionBody(panelAction(actionSnarkLevel, "7", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[7]", wantNotice: "Snark level set to 7."},
+		"snark 10, the max":               {body: interactionBody(panelAction(actionSnarkLevel, "10", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[10]", wantNotice: "Snark level set to 10."},
+		"snark out of range":              {body: interactionBody(panelAction(actionSnarkLevel, "11", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[]", wantNotice: "That isn't a snark level."},
+		"snark not a number":              {body: interactionBody(panelAction(actionSnarkLevel, "abc", hook)), sign: true, wantCode: http.StatusOK, wantLevels: "[]", wantNotice: "That isn't a snark level."},
+		"reply mode channel":              {body: interactionBody(panelAction(actionReplyMode, "channel", hook)), sign: true, wantCode: http.StatusOK, wantModes: "[channel]", wantNotice: "Reply mode set to channel."},
+		"reply mode unknown":              {body: interactionBody(panelAction(actionReplyMode, "dm", hook)), sign: true, wantCode: http.StatusOK, wantModes: "[]", wantNotice: "That isn't a reply mode."},
+		"store error is a 500":            {body: interactionBody(panelAction(actionSnarkLevel, "7", hook)), sign: true, storeErr: errors.New("dynamo down"), wantCode: http.StatusInternalServerError, wantLevels: "[7]"},
+		"reply mode store error is a 500": {body: interactionBody(panelAction(actionReplyMode, "thread", hook)), sign: true, storeErr: errors.New("dynamo down"), wantCode: http.StatusInternalServerError, wantModes: "[thread]"},
+		"GovSlack hook":                   {body: interactionBody(panelAction(actionSnarkLevel, "7", "https://hooks.slack-gov.com/actions/T1/1/abc")), sign: true, wantCode: http.StatusOK, wantLevels: "[7]", wantNotice: "Snark level set to 7."},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -107,7 +109,7 @@ func TestInteractionsSettingsPanel(t *testing.T) {
 				}
 				return
 			}
-			if len(*posts) != 1 || (*posts)[0].url != hook || (*posts)[0].text != tc.wantNotice {
+			if len(*posts) != 1 || !strings.HasPrefix((*posts)[0].url, "https://hooks.slack") || (*posts)[0].text != tc.wantNotice {
 				t.Fatalf("panel refresh %+v, want one post to %s with %q", *posts, hook, tc.wantNotice)
 			}
 		})
@@ -191,9 +193,12 @@ func TestInteractionsChangeKarmaReactions(t *testing.T) {
 			wantCalls: "set workspace=true tier=5 tada,describe", wantNotice: "Couldn't change that: only workspace admins can do that."},
 		"a store error is a 500": {payload: emojiAction(actionEmojiInput, ":tada:", "5", false), err: errors.New("dynamo down"), wantCode: http.StatusInternalServerError,
 			wantCalls: "set workspace=false tier=5 :tada:"},
-		"reset the workspace": {payload: emojiAction(actionEmojiReset, "", "", true), wantCode: http.StatusOK,
-			wantCalls: "reset workspace=true,describe", wantNotice: "reset"},
-		"picking a tier alone does nothing": {payload: emojiAction(actionEmojiTier, "", "5", false), wantCode: http.StatusOK},
+		"reset is always this channel, even with the workspace box ticked": {payload: emojiAction(actionEmojiReset, "", "", true), wantCode: http.StatusOK,
+			wantCalls: "reset workspace=false,describe", wantNotice: "reset"},
+		"a failed reset is a 500": {payload: emojiAction(actionEmojiReset, "", "", false), err: errors.New("dynamo down"), wantCode: http.StatusInternalServerError,
+			wantCalls: "reset workspace=false"},
+		"picking a tier alone does nothing":      {payload: emojiAction(actionEmojiTier, "", "5", false), wantCode: http.StatusOK},
+		"ticking the workspace box does nothing": {payload: emojiAction(actionEmojiScope, "", "", true), wantCode: http.StatusOK},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -216,5 +221,34 @@ func TestInteractionsChangeKarmaReactions(t *testing.T) {
 				t.Fatalf("panel refresh %+v, want notice %q", *posts, tc.wantNotice)
 			}
 		})
+	}
+}
+
+func TestInteractionsSavedEvenWhenPanelCannotReload(t *testing.T) {
+	settings := &recordingSettings{getErr: errors.New("dynamo down")}
+	p, posts := interactionsUnderTest(settings, &recordingReactions{}, http.StatusOK)
+	rec := sendInteraction(p, interactionBody(panelAction(actionSnarkLevel, "7", hook)), true)
+	if rec.Code != http.StatusOK || fmt.Sprint(settings.levels) != "[7]" || len(*posts) != 0 {
+		t.Fatalf("status %d, levels %v, posts %d: want 200, [7], no redraw", rec.Code, settings.levels, len(*posts))
+	}
+}
+
+func TestInteractionsEmojiActionsIgnoredWithoutReactionSettings(t *testing.T) {
+	p := NewInteractionsProcessor(&recordingSettings{}, "1.2.3")
+	for _, action := range []string{actionEmojiInput, actionEmojiReset} {
+		if rec := sendInteraction(p, interactionBody(emojiAction(action, ":tada:", "5", false)), true); rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d, want 200", action, rec.Code)
+		}
+	}
+}
+
+func TestReplacePanelErrorLeavesOutTheURL(t *testing.T) {
+	p := NewInteractionsProcessor(&recordingSettings{}, "1.2.3")
+	p.httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("connection reset")
+	})}
+	err := p.replacePanel(t.Context(), hook, "x", nil)
+	if err == nil || strings.Contains(err.Error(), "hooks.slack.com") {
+		t.Fatalf("error should not carry the response_url: %v", err)
 	}
 }

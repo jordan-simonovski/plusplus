@@ -20,6 +20,7 @@ type recordingSettings struct {
 	modes  []ReplyMode
 	levels []int
 	err    error
+	getErr error // returned from GetChannelSettings
 }
 
 func (r *recordingSettings) SetReplyMode(_ context.Context, _, _, _ string, mode ReplyMode) (string, error) {
@@ -37,6 +38,9 @@ func (r *recordingSettings) SetSnarkLevel(_ context.Context, _, _, _ string, lev
 
 // GetChannelSettings returns the last mode and level set, so a redrawn panel shows them.
 func (r *recordingSettings) GetChannelSettings(context.Context, string, string) (ReplyMode, int, error) {
+	if r.getErr != nil {
+		return "", 0, r.getErr
+	}
 	mode, level := ReplyModeThread, domain.DefaultSnarkLevel
 	if len(r.modes) > 0 {
 		mode = r.modes[len(r.modes)-1]
