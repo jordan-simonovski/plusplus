@@ -1,5 +1,12 @@
 # plusplus
 
+## 1.2.0
+
+### Minor Changes
+
+- e59633e: Give karma to several people in one message. `@plusplus @sam @alex +++++` gives everyone in a row of mentions the same karma, and `@plusplus @sam ++++ @alex ---` still gives each person their own. Previously only the last person in a row of mentions got anything. PlusPlus now answers with one reply listing everyone, and thanking a few people at once no longer sets off karma-war snark.
+- d06c0f5: `/plusplus-settings` is now a proper settings panel. Pick where replies go, set the snark level and change karma reactions right on the panel, with no commands to remember: choose a tier, type the emojis and press Enter. Workspace admins can tick a box to change reactions for the whole workspace. The panel updates in place, so it always shows the channel's current settings and what just changed.
+
 ## 1.1.1
 
 ### Patch Changes
