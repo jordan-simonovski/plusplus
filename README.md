@@ -8,6 +8,7 @@ a little snark. It's written in Go and runs as a single container backed by Dyna
 
 - Applies karma from emoji reactions (`reaction_added` / `reaction_removed`): 👏 🙌 ⭐ 🔥 🏆 give 1–5, 🙄 👎 🤡 💩 🗑️ take 1–5. Each reactor's strongest reaction on a message counts. Reactions to a typed karma message (`@plusplus @sam ++`) go to the people it credited, not the poster. Channels and workspaces can remap tiers to their own emojis with `/plusplus-settings emoji`.
 - Applies karma from `@user ++` text: via `app_mention` (`@plusplus @sam ++`) everywhere, and from plain channel messages (`message` events) when the app has the `*:history` scopes (self-hosted).
+- Credits several people in one message: `@plusplus @sam @alex ++` gives everyone in a row of mentions the run that follows, and `@plusplus @sam ++ @alex --` gives each their own.
 - Supports `+` and `-` runs with discord-karma parity rules (min 2 symbols, cap at 6 symbols => max delta 5).
 - Slash commands:
   - `/plusplus-leaderboard`

@@ -19,47 +19,38 @@ type KarmaSegment struct {
 	SymbolRun string
 }
 
-// karmaSegmentPattern: <@USER> or <!subteam^GROUP|label> followed by a + or − run.
+// mentionPattern matches <@USER> or <!subteam^GROUP|label>.
+const mentionPattern = `(?:<@([A-Z0-9]+)>|<!subteam\^([A-Z0-9]+)(?:\|[^>]+)?>)`
+
+var mentionRegexp = regexp.MustCompile(mentionPattern)
+
+// karmaSegmentPattern: one or more mentions on the same line, separated only by spaces,
+// then a + or − run they all share, so "<@A> <@B> ++" credits both. A newline ends the
+// row, so a "cc <@A>" line doesn't pick up the run on the next.
 var karmaSegmentPattern = regexp.MustCompile(
-	`(?:<@([A-Z0-9]+)>|<!subteam\^([A-Z0-9]+)(?:\|[^>]+)?>)\s*(\++|[-\x{2010}\x{2011}\x{2013}\x{2014}\x{2212}]+)`,
+	`(?P<mentions>(?:` + mentionPattern + `[^\S\n]*)+)\s*(?P<run>\++|[-\x{2010}\x{2011}\x{2013}\x{2014}\x{2212}]+)`,
+)
+
+var (
+	mentionsGroup = karmaSegmentPattern.SubexpIndex("mentions")
+	runGroup      = karmaSegmentPattern.SubexpIndex("run")
 )
 
 // ParseKarmaSegments returns every user mention or subteam mention with its symbol run, left-to-right.
 func ParseKarmaSegments(text string) []KarmaSegment {
-	idx := karmaSegmentPattern.FindAllStringSubmatchIndex(text, -1)
-	if len(idx) == 0 {
-		return nil
-	}
-	out := make([]KarmaSegment, 0, len(idx))
-	for _, pair := range idx {
-		if len(pair) < 8 {
-			continue
-		}
-		symStart, symEnd := pair[6], pair[7]
-		sym := text[symStart:symEnd]
+	var out []KarmaSegment
+	for _, m := range karmaSegmentPattern.FindAllStringSubmatchIndex(text, -1) {
+		mentions := text[m[2*mentionsGroup]:m[2*mentionsGroup+1]]
+		sym, symEnd := text[m[2*runGroup]:m[2*runGroup+1]], m[2*runGroup+1]
 		if hasPlusMinusContinuationAfter(text, symEnd) {
 			continue
 		}
-		var userID, subteamID string
-		if pair[2] != -1 && pair[3] != -1 {
-			userID = text[pair[2]:pair[3]]
-		}
-		if pair[4] != -1 && pair[5] != -1 {
-			subteamID = text[pair[4]:pair[5]]
-		}
-		switch {
-		case userID != "":
-			out = append(out, KarmaSegment{
-				Kind:      KarmaSegmentUser,
-				UserID:    userID,
-				SymbolRun: sym,
-			})
-		case subteamID != "":
-			out = append(out, KarmaSegment{
-				Kind:      KarmaSegmentSubteam,
-				SubteamID: subteamID,
-				SymbolRun: sym,
-			})
+		for _, sub := range mentionRegexp.FindAllStringSubmatch(mentions, -1) {
+			if sub[1] != "" {
+				out = append(out, KarmaSegment{Kind: KarmaSegmentUser, UserID: sub[1], SymbolRun: sym})
+			} else {
+				out = append(out, KarmaSegment{Kind: KarmaSegmentSubteam, SubteamID: sub[2], SymbolRun: sym})
+			}
 		}
 	}
 	return out

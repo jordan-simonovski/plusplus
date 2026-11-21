@@ -266,6 +266,21 @@ func (p *EventsProcessor) handleKarmaMessage(ctx context.Context, envelope Event
 
 	threadTS, snarkLevel := p.resolveChannelContext(ctx, envelope)
 
+	// Awards to people are gathered into one reply, posted before any group award (which
+	// posts its own) and at the end, so a message thanking five people isn't five replies.
+	var lines []string
+	flush := func() error {
+		if len(lines) == 0 {
+			return nil
+		}
+		text := strings.Join(lines, "\n")
+		lines = nil
+		if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, text, threadTS); err != nil {
+			return &eventFailure{status: http.StatusBadGateway, body: "failed to post message", log: "post karma reply failed", err: err}
+		}
+		return nil
+	}
+
 	for _, seg := range segments {
 		switch seg.Kind {
 		case parser.KarmaSegmentUser:
@@ -276,24 +291,31 @@ func (p *EventsProcessor) handleKarmaMessage(ctx context.Context, envelope Event
 				TargetHandle: "<@" + seg.UserID + ">",
 				SymbolRun:    seg.SymbolRun,
 				SnarkLevel:   snarkLevel,
+				// Thanking several people in one message is one gesture, not a burst.
+				SkipWar: len(segments) > 1,
 			})
 			if err != nil {
+				// The people already credited keep it (the claim stops a retry re-applying
+				// it). Say so, or the poster sees silence and retypes the award.
+				if len(lines) > 0 {
+					p.postBestEffort(ctx, envelope, strings.Join(append(lines, domain.AwardStoppedNote), "\n"), threadTS)
+				}
 				return &eventFailure{status: http.StatusInternalServerError, body: "failed to apply karma", log: "apply karma failed", err: err}
 			}
-
 			if result.Message != "" {
-				if err := p.webClient.PostMessage(ctx, envelope.TeamID, envelope.Event.Channel, result.Message, threadTS); err != nil {
-					return &eventFailure{status: http.StatusBadGateway, body: "failed to post message", log: "post karma reply failed", err: err}
-				}
+				lines = append(lines, result.Message)
 			}
 
 		case parser.KarmaSegmentSubteam:
+			if err := flush(); err != nil {
+				return err
+			}
 			if err := p.handleSubteamKarma(ctx, envelope, seg, groups[seg.SubteamID], threadTS, snarkLevel); err != nil {
 				return &eventFailure{status: http.StatusBadGateway, body: err.Error(), log: "user group karma failed", err: err}
 			}
 		}
 	}
-	return nil
+	return flush()
 }
 
 func (p *EventsProcessor) resolveChannelContext(ctx context.Context, envelope EventEnvelope) (threadTS string, snarkLevel int) {

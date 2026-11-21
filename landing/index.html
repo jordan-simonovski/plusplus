@@ -82,7 +82,7 @@
         <li class="rule">
           <span class="rule__glyph rule__glyph--plus" aria-hidden="true">++</span>
           <h3 class="rule__title">Or type it</h3>
-          <p>Mention the bot and a teammate with a run of pluses: <code>@plusplus @sam ++</code>. Longer runs give more, and <code>--</code> docks. iOS turning <code>--</code> into an em dash? Handled.</p>
+          <p>Mention the bot and a teammate with a run of pluses: <code>@plusplus @sam ++</code>. Longer runs give more, and <code>--</code> docks. Thanking a few people? <code>@plusplus @sam @alex ++</code> gives them all the same, or give each their own: <code>@plusplus @sam ++ @alex --</code>. iOS turning <code>--</code> into an em dash? Handled.</p>
         </li>
         <li class="rule">
           <span class="rule__glyph rule__glyph--cap" aria-hidden="true">±5</span>
@@ -131,7 +131,11 @@
         </div>
         <div class="command">
           <code class="command__name">@plusplus @user ++ / --</code>
-          <span class="command__desc">Award or dock karma by typing. Min 2 symbols, capped at ±5 per message.</span>
+          <span class="command__desc">Award or dock karma by typing. Min 2 symbols, capped at ±5 per person.</span>
+        </div>
+        <div class="command">
+          <code class="command__name">@plusplus @user1 @user2 ++</code>
+          <span class="command__desc">Credit several people at once. Mentions in a row share the run, or give each their own: <code>@user1 ++ @user2 --</code>.</span>
         </div>
         <div class="command">
           <code class="command__name">/plusplus-leaderboard</code>
@@ -250,6 +254,23 @@
             segments: [at('plusplus'), { text: ' ' }, at('sophie'), sym('+', 5)],
             reply: applied('Sophie Chapman', 'gained', 4, 57, 61)
           }]
+        },
+        {
+          label: 'Several',
+          messages: [
+            {
+              author: jez, time: '9:41 AM',
+              segments: [at('plusplus'), { text: ' ' }, at('mark'), { text: ' ' }, at('dobby'), sym('+', 3)],
+              reply: applied('Mark Corrigan', 'gained', 2, 15, 17)
+                + applied('Dobby', 'gained', 2, 32, 34)
+            },
+            {
+              author: mark, time: '9:41 AM',
+              segments: [at('plusplus'), { text: ' ' }, at('johnson'), sym('+', 4), { text: ' ' }, at('superhans'), sym('-', 3)],
+              reply: applied('Alan Johnson', 'gained', 3, 43, 46)
+                + applied('Super Hans', 'lost', 2, 59, 57)
+            }
+          ]
         },
         {
           label: 'Feud',

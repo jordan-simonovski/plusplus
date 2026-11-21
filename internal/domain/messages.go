@@ -68,6 +68,10 @@ func FormatGroupSelfKarmaRejection(targetName string, reason RejectionReason) st
 // listed above it were credited, the rest were not.
 const GroupAwardStoppedNote = "_Something went wrong partway through, so the rest of the group didn't get karma. Everyone listed above did._"
 
+// AwardStoppedNote ends a reply to a message crediting several people that failed
+// partway: the people listed above it were credited, the rest were not.
+const AwardStoppedNote = "_Something went wrong partway through, so the rest didn't get karma. Everyone listed above did._"
+
 // FormatGroupTooLarge replies to karma for a user group bigger than the group-karma limit.
 func FormatGroupTooLarge(size, limit int) string {
 	return fmt.Sprintf("That user group has %d people, and group karma works for groups of up to %d. Give karma to people individually instead.", size, limit)

@@ -47,6 +47,7 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
 		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <@U2> ++++","channel":"C1","event_ts":"123.4"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
@@ -69,12 +70,13 @@ func TestEventsProcessorAppMentionPostsMessage(t *testing.T) {
 	}
 }
 
-func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
+func TestEventsProcessorMultipleKarmaTargetsShareOneReply(t *testing.T) {
 	web := &fakeWebClient{}
 	processor := NewEventsProcessor(fakeKarmaActionService{}, nil, nil, web)
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
 		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> Bravo <@U2> ++++++ , from <@U3> +++++","channel":"C1","event_ts":"123.4"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
@@ -86,13 +88,55 @@ func TestEventsProcessorMultipleKarmaTargetsPostSeparateMessages(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	if len(web.posts) != 2 {
-		t.Fatalf("expected 2 posts, got %d", len(web.posts))
+	if len(web.posts) != 1 || web.posts[0].text != "applied ++++++\napplied +++++" {
+		t.Fatalf("expected one combined reply, got %+v", web.posts)
 	}
-	for i, want := range []string{"applied ++++++", "applied +++++"} {
-		if web.posts[i].text != want {
-			t.Fatalf("post %d: got %q want %q", i, web.posts[i].text, want)
-		}
+}
+
+func TestEventsProcessorMentionsInARowShareTheRun(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{})
+	if code := postKarma(p, "1.1", "<@U3> <@U4> +++++"); code != http.StatusOK {
+		t.Fatalf("status %d", code)
+	}
+	if code := postKarma(p, "1.2", "<@U3> ++++ <@U4> ---"); code != http.StatusOK {
+		t.Fatalf("status %d", code)
+	}
+	if got, want := strings.Join(runs, ","), "U3 +++++,U4 +++++,U3 ++++,U4 ---"; got != want {
+		t.Fatalf("karma runs = %s, want %s", got, want)
+	}
+}
+
+func TestEventsProcessorSeveralPeopleSkipKarmaWar(t *testing.T) {
+	var runs []string
+	var skip []bool
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, skipWar: &skip}, nil, nil, &fakeWebClient{})
+	postKarma(p, "1.1", "<@U3> <@U4> <@U5> ++") // thanking three people isn't a burst
+	postKarma(p, "1.2", "<@U3> ++")             // a single award still counts
+	if fmt.Sprint(skip) != "[true true true false]" {
+		t.Fatalf("SkipWar = %v, want [true true true false]", skip)
+	}
+}
+
+func TestEventsProcessorBotMentionInsideARowIsStripped(t *testing.T) {
+	var runs []string
+	p := NewEventsProcessor(deltaRecorder{runs: &runs}, nil, nil, &fakeWebClient{})
+	postKarma(p, "1.1", "<@U3> <@UBOT> <@U4> ++")
+	if got := strings.Join(runs, ","); got != "U3 ++,U4 ++" {
+		t.Fatalf("karma runs = %s, want U3 ++,U4 ++", got)
+	}
+}
+
+func TestEventsProcessorAwardFailurePartwaySaysWhoGotIt(t *testing.T) {
+	failOn := 2
+	var runs []string
+	web := &fakeWebClient{}
+	p := NewEventsProcessor(deltaRecorder{runs: &runs, failOn: &failOn}, nil, nil, web)
+	if code := postKarma(p, "1.1", "<@U3> <@U4> ++"); code != http.StatusInternalServerError {
+		t.Fatalf("status %d, want 500", code)
+	}
+	if len(web.posts) != 1 || web.posts[0].text != "applied\n"+domain.AwardStoppedNote {
+		t.Fatalf("expected the credited award plus the stopped note, got %+v", web.posts)
 	}
 }
 
@@ -176,6 +220,7 @@ func TestEventsProcessorUsesChannelModeWhenConfigured(t *testing.T) {
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
 		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <@U2> ++++","channel":"C1","event_ts":"123.4"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
@@ -217,6 +262,7 @@ func TestEventsProcessorSubteamKarmaCombinesLines(t *testing.T) {
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
 		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <!subteam^S12345|@admins> ++++","channel":"C1","event_ts":"123.4"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
@@ -243,6 +289,7 @@ func TestEventsProcessorSubteamWithoutListerPostsNotice(t *testing.T) {
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
 		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <!subteam^S1|@admins> ++","channel":"C1","event_ts":"123.4"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))
@@ -266,6 +313,7 @@ func TestEventsProcessorSubteamEmptyGroupPostsNotice(t *testing.T) {
 	payload := []byte(`{
 		"type":"event_callback",
 		"team_id":"T1",
+		"authorizations":[{"user_id":"UBOT","is_bot":true}],
 		"event":{"type":"app_mention","user":"U1","text":"<@UBOT> <!subteam^S1|@admins> ++","channel":"C1","event_ts":"123.4"}
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/slack/events", bytes.NewReader(payload))

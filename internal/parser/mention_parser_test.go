@@ -12,7 +12,7 @@ func TestParseUserMentions(t *testing.T) {
 	}{
 		{
 			name:       "parses mention with pluses",
-			input:      "<@UBOT> <@U123> +++++",
+			input:      "thanks <@U123> +++++",
 			wantUserID: "U123",
 			wantRun:    "+++++",
 			ok:         true,
@@ -52,6 +52,48 @@ func TestParseUserMentions(t *testing.T) {
 				{TargetUserID: "U1", SymbolRun: "++++++"},
 				{TargetUserID: "U2", SymbolRun: "+++++"},
 			},
+		},
+		{
+			name:    "mentions in a row share the run",
+			input:   "<@U1> <@U2>   <@U3> +++++",
+			wantLen: 3,
+			want: []mention{
+				{TargetUserID: "U1", SymbolRun: "+++++"},
+				{TargetUserID: "U2", SymbolRun: "+++++"},
+				{TargetUserID: "U3", SymbolRun: "+++++"},
+			},
+		},
+		{
+			name:    "each mention with its own run",
+			input:   "<@U1> ++++ <@U2> ---",
+			wantLen: 2,
+			want: []mention{
+				{TargetUserID: "U1", SymbolRun: "++++"},
+				{TargetUserID: "U2", SymbolRun: "---"},
+			},
+		},
+		{
+			name:    "a newline ends the row",
+			input:   "cc <@U1>\n<@U2> ++",
+			wantLen: 1,
+			want:    []mention{{TargetUserID: "U2", SymbolRun: "++"}},
+		},
+		{
+			name:    "the run may sit on the next line",
+			input:   "<@U1> <@U2>\n++",
+			wantLen: 2,
+			want:    []mention{{TargetUserID: "U1", SymbolRun: "++"}, {TargetUserID: "U2", SymbolRun: "++"}},
+		},
+		{
+			name:    "noise after a row drops the whole row",
+			input:   "<@U1> <@U2> ---++",
+			wantLen: 0,
+		},
+		{
+			name:    "words between mentions break the group",
+			input:   "thanks <@U1> for helping <@U2> ++",
+			wantLen: 1,
+			want:    []mention{{TargetUserID: "U2", SymbolRun: "++"}},
 		},
 		{
 			name:    "four recipients mixed plus and minus",
@@ -111,6 +153,13 @@ func TestParseKarmaSegmentsIncludesSubteams(t *testing.T) {
 	}
 	if mixed[1].Kind != KarmaSegmentSubteam || mixed[1].SubteamID != "S9" || mixed[1].SymbolRun != "---" {
 		t.Fatalf("seg1: %+v", mixed[1])
+	}
+}
+
+func TestParseKarmaSegmentsGroupsUsersAndSubteams(t *testing.T) {
+	got := ParseKarmaSegments("<@U1> <!subteam^S9|@grp> ++")
+	if len(got) != 2 || got[0].UserID != "U1" || got[1].SubteamID != "S9" || got[0].SymbolRun != "++" || got[1].SymbolRun != "++" {
+		t.Fatalf("unexpected: %+v", got)
 	}
 }
 
