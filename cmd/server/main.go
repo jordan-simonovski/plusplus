@@ -82,7 +82,8 @@ func main() {
 
 	commands := appslack.NewCommandsProcessor(karmaService, settingsService, version.Version).
 		WithReactionSettings(reactionSettings)
-	interactions := appslack.NewInteractionsProcessor(settingsService)
+	interactions := appslack.NewInteractionsProcessor(settingsService, version.Version).
+		WithReactionSettings(reactionSettings)
 	server := slackServer(cfg.SlackSigningSecret, events, commands, interactions, oauthInstall, oauthCallback)
 
 	httpServer := &http.Server{
