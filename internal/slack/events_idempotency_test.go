@@ -149,7 +149,7 @@ func TestTypedKarmaKeepsClaimAfterKarmaStarts(t *testing.T) {
 	}{
 		"first target fails":  {fail: map[string]bool{"U3": true}, web: &fakeWebClient{}, wantFirst: http.StatusInternalServerError, wantCalls: []string{"U3"}},
 		"second target fails": {fail: map[string]bool{"U4": true}, web: &fakeWebClient{}, wantFirst: http.StatusInternalServerError, wantCalls: []string{"U3", "U4"}},
-		"reply fails":         {web: &failingWeb{}, wantFirst: http.StatusBadGateway, wantCalls: []string{"U3"}},
+		"reply fails":         {web: &failingWeb{}, wantFirst: http.StatusBadGateway, wantCalls: []string{"U3", "U4"}}, // one reply, posted after both awards
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

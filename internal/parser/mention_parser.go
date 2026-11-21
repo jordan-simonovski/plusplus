@@ -24,18 +24,25 @@ const mentionPattern = `(?:<@([A-Z0-9]+)>|<!subteam\^([A-Z0-9]+)(?:\|[^>]+)?>)`
 
 var mentionRegexp = regexp.MustCompile(mentionPattern)
 
-// karmaSegmentPattern: one or more mentions separated only by whitespace, then a + or −
-// run they all share, so "<@A> <@B> ++" credits both.
+// karmaSegmentPattern: one or more mentions on the same line, separated only by spaces,
+// then a + or − run they all share, so "<@A> <@B> ++" credits both. A newline ends the
+// row, so a "cc <@A>" line doesn't pick up the run on the next.
 var karmaSegmentPattern = regexp.MustCompile(
-	`((?:` + mentionPattern + `\s*)+)(\++|[-\x{2010}\x{2011}\x{2013}\x{2014}\x{2212}]+)`,
+	`(?P<mentions>(?:` + mentionPattern + `[^\S\n]*)+)\s*(?P<run>\++|[-\x{2010}\x{2011}\x{2013}\x{2014}\x{2212}]+)`,
+)
+
+var (
+	mentionsGroup = karmaSegmentPattern.SubexpIndex("mentions")
+	runGroup      = karmaSegmentPattern.SubexpIndex("run")
 )
 
 // ParseKarmaSegments returns every user mention or subteam mention with its symbol run, left-to-right.
 func ParseKarmaSegments(text string) []KarmaSegment {
 	var out []KarmaSegment
 	for _, m := range karmaSegmentPattern.FindAllStringSubmatchIndex(text, -1) {
-		mentions, sym := text[m[2]:m[3]], text[m[len(m)-2]:m[len(m)-1]]
-		if hasPlusMinusContinuationAfter(text, m[len(m)-1]) {
+		mentions := text[m[2*mentionsGroup]:m[2*mentionsGroup+1]]
+		sym, symEnd := text[m[2*runGroup]:m[2*runGroup+1]], m[2*runGroup+1]
+		if hasPlusMinusContinuationAfter(text, symEnd) {
 			continue
 		}
 		for _, sub := range mentionRegexp.FindAllStringSubmatch(mentions, -1) {

@@ -73,6 +73,23 @@ func TestParseUserMentions(t *testing.T) {
 			},
 		},
 		{
+			name:    "a newline ends the row",
+			input:   "cc <@U1>\n<@U2> ++",
+			wantLen: 1,
+			want:    []mention{{TargetUserID: "U2", SymbolRun: "++"}},
+		},
+		{
+			name:    "the run may sit on the next line",
+			input:   "<@U1> <@U2>\n++",
+			wantLen: 2,
+			want:    []mention{{TargetUserID: "U1", SymbolRun: "++"}, {TargetUserID: "U2", SymbolRun: "++"}},
+		},
+		{
+			name:    "noise after a row drops the whole row",
+			input:   "<@U1> <@U2> ---++",
+			wantLen: 0,
+		},
+		{
 			name:    "words between mentions break the group",
 			input:   "thanks <@U1> for helping <@U2> ++",
 			wantLen: 1,
