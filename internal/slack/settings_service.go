@@ -37,11 +37,6 @@ func (s *ChannelSettingsService) GetChannelSettings(ctx context.Context, teamID 
 	}
 }
 
-func (s *ChannelSettingsService) GetSnarkLevel(ctx context.Context, teamID string, channelID string) (int, error) {
-	_, level, err := s.GetChannelSettings(ctx, teamID, channelID)
-	return level, err
-}
-
 func (s *ChannelSettingsService) SetReplyMode(ctx context.Context, teamID string, channelID string, actorUserID string, mode ReplyMode) (string, error) {
 	if mode != ReplyModeThread && mode != ReplyModeChannel {
 		return "", fmt.Errorf("invalid reply mode: %s", mode)

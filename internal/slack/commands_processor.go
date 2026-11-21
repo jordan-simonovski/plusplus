@@ -21,7 +21,7 @@ type LeaderboardService interface {
 type SettingsCommandService interface {
 	SetReplyMode(ctx context.Context, teamID string, channelID string, actorUserID string, mode ReplyMode) (string, error)
 	SetSnarkLevel(ctx context.Context, teamID string, channelID string, actorUserID string, level int) (string, error)
-	GetSnarkLevel(ctx context.Context, teamID string, channelID string) (int, error)
+	GetChannelSettings(ctx context.Context, teamID string, channelID string) (ReplyMode, int, error)
 }
 
 // ReactionSettingsCommands edits the emoji -> karma tier maps.
@@ -161,27 +161,21 @@ func (p *CommandsProcessor) respondSettings(w http.ResponseWriter, r *http.Reque
 }
 
 func (p *CommandsProcessor) respondSettingsInteractive(w http.ResponseWriter, r *http.Request, payload SlashCommandPayload) {
-	current, err := p.settingsService.GetSnarkLevel(r.Context(), payload.TeamID, payload.ChannelID)
+	var reactions emojiDescriber
+	if p.reactions != nil {
+		reactions = p.reactions
+	}
+	panel, err := loadSettingsPanel(r.Context(), p.settingsService, reactions, payload.TeamID, payload.ChannelID, payload.Command, p.version)
 	if err != nil {
 		slog.Error("load settings failed", "team", payload.TeamID, "kind", payload.Command, "err", err)
 		http.Error(w, "failed to load settings", http.StatusInternalServerError)
 		return
 	}
 
-	// The emoji map is extra context; if it can't load, the panel still works without it.
-	var emojiSummary string
-	if p.reactions != nil {
-		if summary, err := p.reactions.Describe(r.Context(), payload.TeamID, payload.ChannelID); err == nil {
-			emojiSummary = summary
-		} else {
-			slog.Warn("emoji summary unavailable for settings panel", "team", payload.TeamID, "kind", payload.Command, "err", err)
-		}
-	}
-
 	writeJSON(w, http.StatusOK, MessageResponse{
 		ResponseType: "ephemeral",
 		Text:         "Configure this channel's karma replies.",
-		Blocks:       settingsBlocks(current, p.version, emojiSummary),
+		Blocks:       settingsBlocks(panel),
 	})
 }
 

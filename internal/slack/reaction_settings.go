@@ -59,7 +59,7 @@ func (s *ReactionSettingsService) requireAdmin(ctx context.Context, teamID, user
 		return err
 	}
 	if !ok {
-		return inputErr("only workspace admins can change emojis for the whole workspace. Leave out `workspace` to change them for this channel")
+		return inputErr("only workspace admins can change emojis for the whole workspace. You can still change them for this channel")
 	}
 	return nil
 }

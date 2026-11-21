@@ -15,7 +15,7 @@ func TestSlackRoutesRejectUnsignedRequests(t *testing.T) {
 	h := slackServer("secret",
 		appslack.NewEventsProcessor(nil, nil, nil, nil),
 		appslack.NewCommandsProcessor(nil, nil, "test"),
-		appslack.NewInteractionsProcessor(nil),
+		appslack.NewInteractionsProcessor(nil, "test"),
 		nil, nil,
 	).Handler()
 

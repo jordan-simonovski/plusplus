@@ -35,8 +35,16 @@ func (r *recordingSettings) SetSnarkLevel(_ context.Context, _, _, _ string, lev
 	return fmt.Sprintf("Snark level set to %d.", level), nil
 }
 
-func (r *recordingSettings) GetSnarkLevel(context.Context, string, string) (int, error) {
-	return domain.DefaultSnarkLevel, nil
+// GetChannelSettings returns the last mode and level set, so a redrawn panel shows them.
+func (r *recordingSettings) GetChannelSettings(context.Context, string, string) (ReplyMode, int, error) {
+	mode, level := ReplyModeThread, domain.DefaultSnarkLevel
+	if len(r.modes) > 0 {
+		mode = r.modes[len(r.modes)-1]
+	}
+	if len(r.levels) > 0 {
+		level = r.levels[len(r.levels)-1]
+	}
+	return mode, level, nil
 }
 
 // recordingReactions records emoji commands; err is returned from every call.

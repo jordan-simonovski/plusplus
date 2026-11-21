@@ -140,8 +140,8 @@ func (s fakeSettingsCommandService) SetSnarkLevel(_ context.Context, _ string, _
 	return "snark level set to " + strconv.Itoa(level), nil
 }
 
-func (s fakeSettingsCommandService) GetSnarkLevel(_ context.Context, _ string, _ string) (int, error) {
-	return 5, nil
+func (s fakeSettingsCommandService) GetChannelSettings(context.Context, string, string) (ReplyMode, int, error) {
+	return ReplyModeThread, 5, nil
 }
 
 func addSignedHeaders(req *http.Request, secret string, body []byte) {
